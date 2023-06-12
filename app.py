@@ -43,7 +43,7 @@ def predict(model, text, melody, duration, dimension, topk, topp, temperature, c
         cfg_coef=cfg_coef,
         duration=segment_duration,
     )
-
+    output_segments = None
     if melody:
         if duration > MODEL.lm.cfg.dataset.segment_duration:
             output_segments = generate_music_segments(text, melody, MODEL, duration, MODEL.lm.cfg.dataset.segment_duration)
