@@ -14,7 +14,7 @@ torchaudio>=2.0.0
 soundfile
 huggingface_hub
 tqdm
-transformers
+transformers>=4.31.0
 xformers
 demucs
 librosa
