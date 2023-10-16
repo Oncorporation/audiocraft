@@ -9,13 +9,13 @@ num2words
 numpy
 sentencepiece
 spacy==3.5.2
-torch>=2.0.0
-torchaudio>=2.0.0
+torch==2.0.1
+torchaudio==2.0.2
 soundfile
 huggingface_hub
 tqdm
 transformers>=4.31.0
-xformers>=0.0.20
+xformers>=0.0.22
 demucs
 librosa
 gradio==3.38.00
