@@ -68,12 +68,18 @@ class MusicGen:
         return self.compression_model.channels
 
     @staticmethod
-    def get_pretrained(name: str = 'melody', device=None):
-        """Return pretrained model, we provide four models:
+    def get_pretrained(name: str = 'melody-large', device=None):
+        """Return pretrained model, we provide ten models:
         - small (300M), text to music, # see: https://huggingface.co/facebook/musicgen-small
         - medium (1.5B), text to music, # see: https://huggingface.co/facebook/musicgen-medium
         - melody (1.5B) text to music and text+melody to music, # see: https://huggingface.co/facebook/musicgen-melody
         - large (3.3B), text to music, # see: https://huggingface.co/facebook/musicgen-large
+        - melody-large (3.3B), text to music, and text+melody to music # see: https://huggingface.co/facebook/musicgen-melody-large
+        - stereo-small (300M), text to music, # see: https://huggingface.co/facebook/musicgen-small
+        - stereo-medium (1.5B), text to music, # see: https://huggingface.co/facebook/musicgen-stereo-medium
+        - stereo-melody (1.5B) text to music and text+melody to music, # see: https://huggingface.co/facebook/musicgen-stereo-melody
+        - stereo-large (3.3B), text to music, # see: https://huggingface.co/facebook/musicgen-stereo-large
+        - stereo-melody-large (3.3B), text to music, and text+melody to music # see: https://huggingface.co/facebook/musicgen-stereo-melody-large
         """
 
         if device is None:

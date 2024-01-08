@@ -35,6 +35,12 @@ HF_MODEL_CHECKPOINTS_MAP = {
     "medium": "facebook/musicgen-medium",
     "large": "facebook/musicgen-large",
     "melody": "facebook/musicgen-melody",
+    "melody-large": "facebook/musicgen-melody-large",
+    "stereo-small": "facebook/musicgen-stereo-small",
+    "stereo-medium": "facebook/musicgen-stereo-medium",
+    "stereo-large": "facebook/musicgen-stereo-large",
+    "stereo-melody": "facebook/musicgen-stereo-melody",
+    "stereo-melody-large": "facebook/musicgen-stereo-melody-large",
 }
 
 

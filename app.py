@@ -167,7 +167,7 @@ def load_melody_filepath(melody_filepath, title):
     #$Union[str, os.PathLike]    
     symbols = ['_', '.', '-']
     if (melody_filepath is None) or (melody_filepath == ""):
-        return title, gr.update(maximum=0, value=0) , gr.update(value="melody", interactive=True)   
+        return title, gr.update(maximum=0, value=0) , gr.update(value="melody-large", interactive=True)   
     
     if (title is None) or ("MusicGen" in title) or (title == ""):
         melody_name, melody_extension = get_filename_from_filepath(melody_filepath)
@@ -187,7 +187,7 @@ def load_melody_filepath(melody_filepath, title):
     print(f"Melody length: {len(melody_data)}, Melody segments: {total_melodys}\n")
     MAX_PROMPT_INDEX = total_melodys   
 
-    return  gr.Textbox.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value="melody", interactive=False)
+    return  gr.Textbox.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value="melody-large", interactive=True)
 
 def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
@@ -358,7 +358,7 @@ def ui(**kwargs):
             
             Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
                         
-            Todo: Working on improved transitions between 30 second segments, improve Interrupt.
+            Todo: Working on improved Interrupt and new Models.
             """
         )
         if IS_SHARED_SPACE and not torch.cuda.is_available():
@@ -375,7 +375,7 @@ def ui(**kwargs):
                     text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi")
                     with gr.Column():                        
                         duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True)
-                        model = gr.Radio(["melody", "medium", "small", "large"], label="AI Model", value="melody", interactive=True)
+                        model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-melody", "stereo-medium", "stereo-small", "stereo-large", "stereo-melody-large"], label="AI Model", value="melody-large", interactive=True)
                 with gr.Row():
                     submit = gr.Button("Generate", elem_id="btn-generate")
                     # Adapted from https://github.com/rkfg/audiocraft/blob/long/app.py, MIT license.
