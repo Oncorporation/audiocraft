@@ -491,7 +491,7 @@ def ui(**kwargs):
             This is your private demo for [UnlimitedMusicGen](https://github.com/Oncorporation/audiocraft), a simple and controllable model for music generation
             presented at: ["Simple and Controllable Music Generation"](https://huggingface.co/papers/2306.05284)
             
-            Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
+                Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
                         
             Todo: Working on improved Interrupt.
             Theme Available at ["Surn/Beeuty"](https://huggingface.co/spaces/Surn/Beeuty)
