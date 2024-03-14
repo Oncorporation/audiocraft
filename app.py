@@ -26,6 +26,7 @@ import random
 #from pathlib import Path
 #from typing import List, Union
 import librosa
+import user_history
 
 MODEL = None
 MODELS = None
@@ -139,16 +140,20 @@ def git_tag():
                 return next((line.strip() for line in file if line.strip()), "<none>")
         except Exception:
             return "<none>"
-
+        
+def get_xformers_version():
+    try:
+        import xformers
+        return xformers.__version__
+    except Exception:
+        return "<none>"
+    
 def versions_html():
     import torch
 
     python_version = ".".join([str(x) for x in sys.version_info[0:3]])
     commit = commit_hash()
     #tag = git_tag()
-
-    import xformers
-    xformers_version = xformers.__version__
 
     return f"""
         version: <a href="https://github.com/Oncorporation/audiocraft/commit/{"huggingface" if commit == "<none>" else commit}" target="_blank">{"huggingface" if commit == "<none>" else commit}</a>
@@ -157,7 +162,7 @@ def versions_html():
         &#x2000;•&#x2000;
         torch: {getattr(torch, '__long_version__',torch.__version__)}
         &#x2000;•&#x2000;
-        xformers: {xformers_version}
+        xformers: {get_xformers_version()}
         &#x2000;•&#x2000;
         gradio: {gr.__version__}
         """
@@ -322,7 +327,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             output = output_segments[0].detach().cpu().float()[0]
     else:
         output = output.detach().cpu().float()[0]
-
+    profile: gr.OAuthProfile | None = None
     with NamedTemporaryFile("wb", suffix=".wav", delete=False) as file:        
         video_description = f"{text}\n Duration: {str(initial_duration)} Dimension: {dimension}\n Top-k:{topk} Top-p:{topp}\n Randomness:{temperature}\n cfg:{cfg_coef} overlap: {overlap}\n Seed: {seed}\n Model: {model}\n Melody Condition:{melody_name}\n Sample Segment: {prompt_index}"
         if include_settings or include_title:
@@ -331,6 +336,76 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             file.name, output, MODEL.sample_rate, strategy="loudness",
             loudness_headroom_db=18, loudness_compressor=True, add_suffix=False, channels=2)        
         waveform_video = make_waveform(file.name,bg_image=background, bar_count=45)
+        # Remove the extension from file.name
+        file_name_without_extension = os.path.splitext(file.name)[0]
+    
+        # Set waveform_video name with the updated filename and extension
+        waveform_video.name = file_name_without_extension + waveform_video.extension
+        
+        # Set the waveform_video source to the updated filename
+        waveform_video.source = file_name_without_extension + waveform_video.extension
+        
+        # Set the waveform_video label to the updated filename
+        waveform_video.label = file_name_without_extension + waveform_video.extension
+        
+        # Set the waveform_video description to the prompt description
+        waveform_video.description = f"{text}\n Duration: {str(initial_duration)}"
+        commit = commit_hash()
+        metadata={
+                "prompt": text,
+                "negative_prompt": "",
+                "Seed": seed,
+                "steps": 1,
+                "width": 1000,
+                "height":666,
+                "Dimension": dimension,
+                "Top-k": topk,
+                "Top-p":topp,
+                "Randomness": temperature,
+                "cfg":cfg_coef, 
+                "overlap": overlap, 
+                "Melody Condition": melody_name, 
+                "Sample Segment": prompt_index,
+                "Duration": initial_duration,
+                "Audio": file.name,
+                "Video": waveform_video.name,
+                "font": settings_font,
+                "font_color": settings_font_color,
+                "harmony_only": harmony_only,
+                "background": background,
+                "include_title": include_title,
+                "include_settings": include_settings,
+                "profile": profile,
+                "commit": commit_hash(),
+                "tag": git_tag(),
+                "version": gr.__version__,
+                "model_version": MODEL.version,
+                "model_name": MODEL.name,
+                "model_description": MODEL.description,
+                "melody_name" : melody_name,
+                "melody_extension" : melody_extension,
+                "hostname": os.uname().nodename,
+                "version" : f"""https://github.com/Oncorporation/audiocraft/commit/{"huggingface" if commit == "<none>" else commit}""",
+                "python" : sys.version,
+                "torch" : getattr(torch, '__long_version__',torch.__version__), 
+                "xformers": get_xformers_version(), 
+                "gradio": gr.__version__,
+                "huggingface_space": os.environ.get('SPACE_ID', '')
+        }
+        waveform_video.metadata = metadata
+        
+
+        if waveform_video:
+            user_history.save_file(
+            profile=profile,
+            image=background,
+            audio=file,
+            video=waveform_video,
+            label=text,
+            metadata=metadata,
+        )
+        
+        
     if MOVE_TO_CPU:
         MODEL.to('cpu')
     if UNLOAD_MODEL:
@@ -350,114 +425,117 @@ def ui(**kwargs):
     .small-btn {max-width:75px;}
     """
     with gr.Blocks(title="UnlimitedMusicGen", css=css) as demo:
-        gr.Markdown(
-            """            
-            # UnlimitedMusicGen
-            This is your private demo for [UnlimitedMusicGen](https://github.com/Oncorporation/audiocraft), a simple and controllable model for music generation
-            presented at: ["Simple and Controllable Music Generation"](https://huggingface.co/papers/2306.05284)
+        with gr.Tab("UnlimitedMusicGen"):
+            gr.Markdown(
+                """            
+                # UnlimitedMusicGen
+                This is your private demo for [UnlimitedMusicGen](https://github.com/Oncorporation/audiocraft), a simple and controllable model for music generation
+                presented at: ["Simple and Controllable Music Generation"](https://huggingface.co/papers/2306.05284)
             
-            Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
+                Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
                         
-            Todo: Working on improved Interrupt and new Models.
-            """
-        )
-        if IS_SHARED_SPACE and not torch.cuda.is_available():
-            gr.Markdown("""
-                ⚠ This Space doesn't work in this shared UI ⚠
+                Todo: Working on improved Interrupt and new Models.
+                """
+            )
+            if IS_SHARED_SPACE and not torch.cuda.is_available():
+                gr.Markdown("""
+                    ⚠ This Space doesn't work in this shared UI ⚠
 
-                <a href="https://huggingface.co/spaces/musicgen/MusicGen?duplicate=true" style="display: inline-block;margin-top: .5em;margin-right: .25em;" target="_blank">
-                <img style="margin-bottom: 0em;display: inline;margin-top: -.25em;" src="https://bit.ly/3gLdBN6" alt="Duplicate Space"></a>
-                to use it privately, or use the <a href="https://huggingface.co/spaces/facebook/MusicGen">public demo</a>
-                """)
-        with gr.Row():
-            with gr.Column():
-                with gr.Row():
-                    text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi")
-                    with gr.Column():                        
-                        duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True)
-                        model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-melody", "stereo-medium", "stereo-small", "stereo-large", "stereo-melody-large"], label="AI Model", value="melody-large", interactive=True)
-                with gr.Row():
-                    submit = gr.Button("Generate", elem_id="btn-generate")
-                    # Adapted from https://github.com/rkfg/audiocraft/blob/long/app.py, MIT license.
-                    _ = gr.Button("Interrupt", elem_id="btn-interrupt").click(fn=interrupt, queue=False)
-                with gr.Row():
-                    with gr.Column():
-                        radio = gr.Radio(["file", "mic"], value="file", label="Condition on a melody (optional) File or Mic")
-                        melody_filepath = gr.Audio(source="upload", type="filepath", label="Melody Condition (optional)", interactive=True, elem_id="melody-input")                        
-                    with gr.Column():
-                        harmony_only = gr.Radio(label="Use Harmony Only",choices=["No", "Yes"], value="No", interactive=True, info="Remove Drums?")
-                        prompt_index = gr.Slider(label="Melody Condition Sample Segment", minimum=-1, maximum=MAX_PROMPT_INDEX, step=1, value=0, interactive=True, info="Which 30 second segment to condition with, - 1 condition each segment independantly")                                                
-                with gr.Accordion("Video", open=False):
+                    <a href="https://huggingface.co/spaces/musicgen/MusicGen?duplicate=true" style="display: inline-block;margin-top: .5em;margin-right: .25em;" target="_blank">
+                    <img style="margin-bottom: 0em;display: inline;margin-top: -.25em;" src="https://bit.ly/3gLdBN6" alt="Duplicate Space"></a>
+                    to use it privately, or use the <a href="https://huggingface.co/spaces/facebook/MusicGen">public demo</a>
+                    """)
+            with gr.Row():
+                with gr.Column():
                     with gr.Row():
-                        background= gr.Image(value="./assets/background.png", source="upload", label="Background", shape=(768,512), type="filepath", interactive=True)
+                        text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi")
+                        with gr.Column():                        
+                            duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True)
+                            model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-melody", "stereo-medium", "stereo-small", "stereo-large", "stereo-melody-large"], label="AI Model", value="melody-large", interactive=True)
+                    with gr.Row():
+                        submit = gr.Button("Generate", elem_id="btn-generate")
+                        # Adapted from https://github.com/rkfg/audiocraft/blob/long/app.py, MIT license.
+                        _ = gr.Button("Interrupt", elem_id="btn-interrupt").click(fn=interrupt, queue=False)
+                    with gr.Row():
                         with gr.Column():
-                            include_title = gr.Checkbox(label="Add Title", value=True, interactive=True)
-                            include_settings = gr.Checkbox(label="Add Settings to background", value=True, interactive=True)
-                    with gr.Row():
-                        title = gr.Textbox(label="Title", value="UnlimitedMusicGen", interactive=True)
-                        settings_font = gr.Text(label="Settings Font", value="./assets/arial.ttf", interactive=True)
-                        settings_font_color = gr.ColorPicker(label="Settings Font Color", value="#c87f05", interactive=True)
-                with gr.Accordion("Expert", open=False):
-                    with gr.Row():
-                        overlap = gr.Slider(minimum=0, maximum=15, value=2, step=1, label="Verse Overlap", interactive=True)
-                        dimension = gr.Slider(minimum=-2, maximum=2, value=2, step=1, label="Dimension", info="determines which direction to add new segements of audio. (1 = stack tracks, 2 = lengthen, -2..0 = ?)", interactive=True)
-                    with gr.Row():
-                        topk = gr.Number(label="Top-k", value=280, precision=0, interactive=True)
-                        topp = gr.Number(label="Top-p", value=1150, precision=0, interactive=True)
-                        temperature = gr.Number(label="Randomness Temperature", value=0.7, precision=None, interactive=True)
-                        cfg_coef = gr.Number(label="Classifier Free Guidance", value=8.5, precision=None, interactive=True)
-                    with gr.Row():
-                        seed = gr.Number(label="Seed", value=-1, precision=0, interactive=True)
-                        gr.Button('\U0001f3b2\ufe0f', elem_classes="small-btn").click(fn=lambda: -1, outputs=[seed], queue=False)
-                        reuse_seed = gr.Button('\u267b\ufe0f', elem_classes="small-btn")
-            with gr.Column() as c:
-                output = gr.Video(label="Generated Music")
-                wave_file = gr.File(label=".wav file", elem_id="output_wavefile", interactive=True)
-                seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
+                            radio = gr.Radio(["file", "mic"], value="file", label="Condition on a melody (optional) File or Mic")
+                            melody_filepath = gr.Audio(source="upload", type="filepath", label="Melody Condition (optional)", interactive=True, elem_id="melody-input")                        
+                        with gr.Column():
+                            harmony_only = gr.Radio(label="Use Harmony Only",choices=["No", "Yes"], value="No", interactive=True, info="Remove Drums?")
+                            prompt_index = gr.Slider(label="Melody Condition Sample Segment", minimum=-1, maximum=MAX_PROMPT_INDEX, step=1, value=0, interactive=True, info="Which 30 second segment to condition with, - 1 condition each segment independantly")                                                
+                    with gr.Accordion("Video", open=False):
+                        with gr.Row():
+                            background= gr.Image(value="./assets/background.png", source="upload", label="Background", shape=(768,512), type="filepath", interactive=True)
+                            with gr.Column():
+                                include_title = gr.Checkbox(label="Add Title", value=True, interactive=True)
+                                include_settings = gr.Checkbox(label="Add Settings to background", value=True, interactive=True)
+                        with gr.Row():
+                            title = gr.Textbox(label="Title", value="UnlimitedMusicGen", interactive=True)
+                            settings_font = gr.Text(label="Settings Font", value="./assets/arial.ttf", interactive=True)
+                            settings_font_color = gr.ColorPicker(label="Settings Font Color", value="#c87f05", interactive=True)
+                    with gr.Accordion("Expert", open=False):
+                        with gr.Row():
+                            overlap = gr.Slider(minimum=0, maximum=15, value=2, step=1, label="Verse Overlap", interactive=True)
+                            dimension = gr.Slider(minimum=-2, maximum=2, value=2, step=1, label="Dimension", info="determines which direction to add new segements of audio. (1 = stack tracks, 2 = lengthen, -2..0 = ?)", interactive=True)
+                        with gr.Row():
+                            topk = gr.Number(label="Top-k", value=280, precision=0, interactive=True)
+                            topp = gr.Number(label="Top-p", value=1150, precision=0, interactive=True)
+                            temperature = gr.Number(label="Randomness Temperature", value=0.7, precision=None, interactive=True)
+                            cfg_coef = gr.Number(label="Classifier Free Guidance", value=8.5, precision=None, interactive=True)
+                        with gr.Row():
+                            seed = gr.Number(label="Seed", value=-1, precision=0, interactive=True)
+                            gr.Button('\U0001f3b2\ufe0f', elem_classes="small-btn").click(fn=lambda: -1, outputs=[seed], queue=False)
+                            reuse_seed = gr.Button('\u267b\ufe0f', elem_classes="small-btn")
+                with gr.Column() as c:
+                    output = gr.Video(label="Generated Music")
+                    wave_file = gr.File(label=".wav file", elem_id="output_wavefile", interactive=True)
+                    seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
 
-        radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False)
-        melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title], outputs=[title, prompt_index , model], api_name="melody_filepath_change", queue=False)
-        reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed")
-        submit.click(predict, inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only], outputs=[output, wave_file, seed_used], api_name="submit")
-        gr.Examples(
-            fn=predict,
-            examples=[
-                [
-                    "4/4 120bpm 320kbps 48khz, An 80s driving pop song with heavy drums and synth pads in the background",
-                    "./assets/bach.mp3",
-                    "melody",
-                    "80s Pop Synth"
+            radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False)
+            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title], outputs=[title, prompt_index , model], api_name="melody_filepath_change", queue=False)
+            reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed")
+            submit.click(predict, inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only], outputs=[output, wave_file, seed_used], api_name="submit")
+            gr.Examples(
+                fn=predict,
+                examples=[
+                    [
+                        "4/4 120bpm 320kbps 48khz, An 80s driving pop song with heavy drums and synth pads in the background",
+                        "./assets/bach.mp3",
+                        "melody",
+                        "80s Pop Synth"
+                    ],
+                    [
+                        "4/4 120bpm 320kbps 48khz, A cheerful country song with acoustic guitars",
+                        "./assets/bolero_ravel.mp3",
+                        "melody",
+                        "Country Guitar"
+                    ],
+                    [
+                        "4/4 120bpm 320kbps 48khz, 90s rock song with electric guitar and heavy drums",
+                        None,
+                        "medium", 
+                        "90s Rock Guitar"
+                    ],
+                    [
+                        "4/4 120bpm 320kbps 48khz, a light and cheerly EDM track, with syncopated drums, aery pads, and strong emotions",
+                        "./assets/bach.mp3",
+                        "melody",
+                        "EDM my Bach"
+                    ],
+                    [
+                        "4/4 320kbps 48khz, lofi slow bpm electro chill with organic samples",
+                        None,
+                        "medium", 
+                        "LoFi Chill"
+                    ],
                 ],
-                [
-                    "4/4 120bpm 320kbps 48khz, A cheerful country song with acoustic guitars",
-                    "./assets/bolero_ravel.mp3",
-                    "melody",
-                    "Country Guitar"
-                ],
-                [
-                    "4/4 120bpm 320kbps 48khz, 90s rock song with electric guitar and heavy drums",
-                    None,
-                    "medium", 
-                    "90s Rock Guitar"
-                ],
-                [
-                    "4/4 120bpm 320kbps 48khz, a light and cheerly EDM track, with syncopated drums, aery pads, and strong emotions",
-                    "./assets/bach.mp3",
-                    "melody",
-                    "EDM my Bach"
-                ],
-                [
-                    "4/4 320kbps 48khz, lofi slow bpm electro chill with organic samples",
-                    None,
-                    "medium", 
-                    "LoFi Chill"
-                ],
-            ],
-            inputs=[text, melody_filepath, model, title],
-            outputs=[output]
-        )
-        gr.HTML(value=versions_html(), visible=True, elem_id="versions")
-
+                inputs=[text, melody_filepath, model, title],
+                outputs=[output]
+            )
+            gr.HTML(value=versions_html(), visible=True, elem_id="versions")
+        with gr.Tab("User History"):
+            user_history.render()
+            
         # Show the interface
         launch_kwargs = {}
         share = kwargs.get('share', False)

@@ -20,3 +20,6 @@ demucs
 librosa
 gradio==3.38.00
 pillow
+filetype
+wave
+mutagen
