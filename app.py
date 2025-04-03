@@ -45,10 +45,10 @@ MAX_PROMPT_INDEX = 0
 git = os.environ.get('GIT', "git")
 #s.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128,expandable_segments:True"
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['CUDA_MODULE_LOADING']='LAZY'
-os.environ['USE_FLASH_ATTENTION'] = '1'
-os.environ['XFORMERS_FORCE_DISABLE_TRITON']= '1'
+# os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# os.environ['CUDA_MODULE_LOADING']='LAZY'
+# os.environ['USE_FLASH_ATTENTION'] = '1'
+# os.environ['XFORMERS_FORCE_DISABLE_TRITON']= '1'
 
 def interrupt_callback():
     return INTERRUPTED
