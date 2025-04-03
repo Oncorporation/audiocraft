@@ -179,7 +179,7 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
             descriptions=[text],
             melody_wavs=verse,
             sample_rate=sr,
-            progress=False,
+            progress=True,
             prompt=prompt_segment,
         )
         # If user selects a prompt segment, use the prompt segment for all segments
@@ -280,9 +280,10 @@ def load_font(font_name, font_size=16):
     if font is None:
         try:
             req = requests.get(font_name)
-            font = ImageFont.truetype(BytesIO(req.content), font_size)  
-        except (FileNotFoundError, OSError):            
-            print(f"Font not found: {font_name} Using default font\n")
+            font = ImageFont.truetype(BytesIO(req.content), font_size)       
+        except (FileNotFoundError, OSError):
+             print(f"Font not found: {font_name} Using default font\n")
+
     if font:
         print(f"Font loaded {font.getname()}")
     else:

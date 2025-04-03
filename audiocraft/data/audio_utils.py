@@ -3,7 +3,8 @@
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-
+"""Various utilities for audio convertion (pcm format, sample rate and channels),
+and volume normalization."""
 import sys
 import typing as tp
 
@@ -150,17 +151,19 @@ def f32_pcm(wav: torch.Tensor) -> torch.Tensor:
     """
     if wav.dtype.is_floating_point:
         return wav
-    else:
-        assert wav.dtype == torch.int16
+    elif wav.dtype == torch.int16:
         return wav.float() / 2**15
+    elif wav.dtype == torch.int32:
+        return wav.float() / 2**31
+    raise ValueError(f"Unsupported wav dtype: {wav.dtype}")
 
 
 def i16_pcm(wav: torch.Tensor) -> torch.Tensor:
     """Convert audio to int 16 bits PCM format.
 
-    ..Warning:: There exist many formula for doing this convertion. None are perfect
-    due to the asymetry of the int16 range. One either have possible clipping, DC offset,
-    or inconsistancies with f32_pcm. If the given wav doesn't have enough headroom,
+    ..Warning:: There exist many formula for doing this conversion. None are perfect
+    due to the asymmetry of the int16 range. One either have possible clipping, DC offset,
+    or inconsistencies with f32_pcm. If the given wav doesn't have enough headroom,
     it is possible that `i16_pcm(f32_pcm)) != Identity`.
     """
     if wav.dtype.is_floating_point:

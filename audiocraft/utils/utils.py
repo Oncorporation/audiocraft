@@ -5,9 +5,12 @@
 # LICENSE file in the root directory of this source tree.
 
 from concurrent.futures import ProcessPoolExecutor
-from functools import wraps
+from contextlib import contextmanager
+from functools import wraps, lru_cache
 import hashlib
+import json
 import logging
+from pathlib import Path
 import typing as tp
 
 import flashy
@@ -18,6 +21,18 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 logger = logging.getLogger(__name__)
+
+
+def model_hash(model: torch.nn.Module) -> str:
+    """Return a model hash. This should allow us to track regressions in model init
+    from the logs of past experiments.
+    """
+    hasher = hashlib.sha1()
+    for p in model.parameters():
+        hasher.update(p.data.cpu().numpy().tobytes())
+    return hasher.hexdigest()
+
+
 
 
 def dict_from_config(cfg: omegaconf.DictConfig) -> dict:
@@ -172,7 +187,7 @@ def length_to_mask(lengths: torch.Tensor, max_len: tp.Optional[int] = None) -> t
     assert len(lengths.shape) == 1, "Length shape should be 1 dimensional."
     final_length = lengths.max().item() if not max_len else max_len
     final_length = max(final_length, 1)  # if all seqs are of len zero we don't want a zero-size tensor
-    return torch.arange(final_length)[None, :].to(lengths.device) < lengths[:, None]
+    return torch.arange(final_length, device=lengths.device)[None, :] < lengths[:, None]
 
 
 def hash_trick(word: str, vocab_size: int) -> int:
@@ -232,3 +247,54 @@ def collate(tensors: tp.List[torch.Tensor], dim: int = 0) -> tp.Tuple[torch.Tens
     padded_tensors = padded_tensors.transpose(0, 1)
     padded_tensors = padded_tensors.transpose(1, dim + 1)
     return padded_tensors, lens
+
+
+# TODO: Move to flashy?
+def copy_state(state: tp.Any, device: tp.Union[torch.device, str] = 'cpu',
+               dtype: tp.Optional[torch.dtype] = None) -> tp.Any:
+    if isinstance(state, torch.Tensor):
+        if dtype is None or not state.is_floating_point():
+            dtype = state.dtype
+        return state.detach().to(device=device, dtype=dtype, copy=True)
+    elif isinstance(state, dict):
+        return {k: copy_state(v, device, dtype) for k, v in state.items()}
+    elif isinstance(state, list):
+        return [copy_state(v, device, dtype) for v in state]
+
+
+# TODO: Move to flashy?
+@contextmanager
+def swap_state(model, state, **kwargs):
+    old_state = copy_state(model.state_dict())
+    model.load_state_dict(state, **kwargs)
+    try:
+        yield
+    finally:
+        model.load_state_dict(old_state)
+
+
+@lru_cache(None)
+def warn_once(logger, msg):
+    """Warn about a given message only once."""
+    logger.warning(msg)
+
+
+def is_jsonable(x: tp.Any):
+    """Check if an object can be serialized into a json:"""
+    try:
+        json.dumps(x)
+        return True
+    except (TypeError, OverflowError):
+        return False
+
+
+def load_clap_state_dict(clap_model, path: tp.Union[str, Path]):
+    """Wrapper around state dict loading of CLAP model
+    addressing compatibility issues between CLAP and AudioCraft
+    HuggingFace transformer version.
+    See: https://github.com/LAION-AI/CLAP/issues/118
+    """
+    from clap_module.factory import load_state_dict  # type: ignore
+    pkg = load_state_dict(path)
+    pkg.pop('text_branch.embeddings.position_ids', None)
+    clap_model.model.load_state_dict(pkg)

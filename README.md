@@ -4,16 +4,21 @@ emoji: 🎼
 colorFrom: gray
 colorTo: red
 sdk: gradio
-sdk_version: 3.38.0
+sdk_version: 5.23.3
+python_version: 3.12.8
 app_file: app.py
-pinned: false
+pinned: true
 license: creativeml-openrail-m
 tags:
 - musicgen
 - unlimited
 - user history
+- metadata
 hf_oauth: true
 disable_embedding: true
+short_description: 'unlimited Audio generation with a few added features '
+thumbnail: >-
+  https://cdn-uploads.huggingface.co/production/uploads/6346595c9e5f0fe83fc60444/Z8E8OaKV84zuVAvvGpMDJ.png
 ---
 
 [arxiv]: https://arxiv.org/abs/2306.05284
@@ -21,7 +26,18 @@ disable_embedding: true
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
 
 # UnlimitedMusicGen
-This is my modification of the Audiocraft project to enable unlimited Audio generation. I have added a few features to the original project to enable this. I have also added a few features to the gradio interface to make it easier to use.
+Charles Fettinger's modification of the Audiocraft project to enable unlimited Audio generation. I have added a few features to the original project to enable this. I have also added a few features to the gradio interface to make it easier to use.
+
+Please review my other AI relalated spaces at https://huggingface.co/Surn
+
+Check your video's generative metadata with https://mediaarea.net/en/MediaInfo
+
+Also note that I wrote an extension to Gradio for the waveform in the video after v4.48.0 removed it.
+
+The key update here is in the extend utility. We segment melody input and then condition the next segment with current tensors and tensors from the current time in the conditioning melody file.
+This allows us to make entire songs that follow the same arraigement of the original.
+
+**Thank you Huggingface for the community grant to run this project**!!
 
 # Audiocraft
 ![docs badge](https://github.com/facebookresearch/audiocraft/workflows/audiocraft_docs/badge.svg)
@@ -49,12 +65,12 @@ Check out our [sample page][musicgen_samples] or test the available demo!
 We use 20K hours of licensed music to train MusicGen. Specifically, we rely on an internal dataset of 10K high-quality music tracks, and on the ShutterStock and Pond5 music data.
 
 ## Installation
-Audiocraft requires Python 3.9, PyTorch 2.0.0, and a GPU with at least 16 GB of memory (for the medium-sized model). To install Audiocraft, you can run the following:
+Audiocraft requires Python 3.9, PyTorch 2.1.0, and a GPU with at least 16 GB of memory (for the medium-sized model). To install Audiocraft, you can run the following:
 
 ```shell
 # Best to make sure you have torch installed first, in particular before installing xformers.
 # Don't run this if you already have PyTorch installed.
-pip install 'torch>=2.0'
+pip install 'torch>=2.1'
 # Then proceed to one of the following
 pip install -U audiocraft  # stable release
 pip install -U git+https://git@github.com/facebookresearch/audiocraft#egg=audiocraft  # bleeding edge
@@ -63,7 +79,7 @@ pip install -e .  # or if you cloned the repo locally
 
 ## Usage
 We offer a number of way to interact with MusicGen:
-1. A demo is also available on the [`facebook/MusicGen`  HuggingFace Space](https://huggingface.co/spaces/facebook/MusicGen) (huge thanks to all the HF team for their support).
+1. A demo is also available on the [`facebook/MusicGen`  HuggingFace Space](https://huggingface.co/spaces/Surn/UnlimitedMusicGen) (huge thanks to all the HF team for their support).
 2. You can run the Gradio demo in Colab: [colab notebook](https://colab.research.google.com/drive/1-Xe9NCdIs2sCUbiSmwHXozK6AAhMm7_i?usp=sharing).
 3. You can use the gradio demo locally by running `python app.py`.
 4. You can play with MusicGen by running the jupyter notebook at [`demo.ipynb`](./demo.ipynb) locally (if you have a GPU).
@@ -234,4 +250,7 @@ Check [@camenduru tutorial on Youtube](https://www.youtube.com/watch?v=EGfxuTy9E
 * The code in this repository is released under the MIT license as found in the [LICENSE file](LICENSE).
 * The weights in this repository are released under the CC-BY-NC 4.0 license as found in the [LICENSE_weights file](LICENSE_weights).
 [arxiv]: https://arxiv.org/abs/2306.05284
+
+[arxiv]: https://arxiv.org/abs/2306.05284
 [musicgen_samples]: https://ai.honu.io/papers/musicgen/
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference

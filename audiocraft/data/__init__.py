@@ -5,4 +5,4 @@
 # LICENSE file in the root directory of this source tree.
 
 # flake8: noqa
-from . import audio, audio_dataset
+from . import audio, audio_dataset, info_audio_dataset
