@@ -1,2 +1,2 @@
-py -m app
+python -m app
 pause

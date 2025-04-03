@@ -24,7 +24,6 @@ from ..data.audio_utils import convert_audio
 from ..modules.conditioners import ConditioningAttributes, WavCondition
 from ..utils.autocast import TorchAutocast
 
-
 MelodyList = tp.List[tp.Optional[torch.Tensor]]
 MelodyType = tp.Union[torch.Tensor, MelodyList]
 
@@ -76,6 +75,11 @@ class MusicGen:
                 enabled=True, device_type=self.device.type, dtype=torch.float16)
 
     @property
+    def version(self) -> str:
+        from audiocraft import __version__ as audiocraft_version
+        return audiocraft_version
+
+    @property
     def frame_rate(self) -> float:
         """Roughly the number of AR steps per seconds."""
         return self.compression_model.frame_rate
@@ -123,6 +127,8 @@ class MusicGen:
                     f"{name} is not a valid checkpoint name. "
                     f"Choose one of {', '.join(HF_MODEL_CHECKPOINTS_MAP.keys())}"
                 )
+        else:
+            name = HF_MODEL_CHECKPOINTS_MAP[name]
 
         cache_dir = os.environ.get('MUSICGEN_ROOT', None)
         compression_model = load_compression_model(name, device=device, cache_dir=cache_dir)
@@ -164,7 +170,7 @@ class MusicGen:
             'top_k': top_k,
             'top_p': top_p,
             'cfg_coef': cfg_coef,
-            'two_step_cfg': two_step_cfg,            
+            'two_step_cfg': two_step_cfg,
         }
 
     def set_custom_progress_callback(self, progress_callback: tp.Optional[tp.Callable[[int, int], None]] = None):
@@ -471,16 +477,20 @@ class MusicGen:
                 current_gen_offset += stride_tokens
 
             gen_tokens = torch.cat(all_tokens, dim=-1)
-            return gen_tokens
+        return gen_tokens
 
-            # generate audio
+        # generate audio
 
-    def generate_audio(self, gen_tokens: torch.Tensor):
-        """Generate Audio from tokens"""
-        assert gen_tokens.dim() == 3
-        with torch.no_grad():
-            gen_audio = self.compression_model.decode(gen_tokens, None)
-        return gen_audio
+    def generate_audio(self, gen_tokens: torch.Tensor):        
+        try:
+            """Generate Audio from tokens"""
+            assert gen_tokens.dim() == 3
+            with torch.no_grad():
+                gen_audio = self.compression_model.decode(gen_tokens, None)
+            return gen_audio
+        except Exception as e:
+            print(f"Error generating audio: {e}")
+            return None
     
     #def _generate_tokens(self, attributes: tp.List[ConditioningAttributes],
     #                     prompt_tokens: tp.Optional[torch.Tensor], progress: bool = False) -> torch.Tensor:

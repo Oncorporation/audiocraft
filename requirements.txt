@@ -1,28 +1,38 @@
 # please make sure you have already a pytorch install that is cuda enabled!
-av
+av==11.0.0
 einops
 flashy>=0.0.1
 hydra-core>=1.1
 hydra_colorlog
-julius
-num2words
-numpy
-sentencepiece
-spacy>=3.6.1
-torch>=2.1.0
-torchaudio>=2.1.0
+torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu124
+torchaudio>=2.0.0,<2.6.2 --extra-index-url https://download.pytorch.org/whl/cu124
 soundfile
 huggingface_hub
 tqdm
-transformers>=4.31.0  # need Encodec there.
-xformers>=0.0.23
+transformers>=4.48.0  # need Encodec there.
+xformers>=0.0.23 --index-url https://download.pytorch.org/whl/cu124
 demucs
 librosa
-gradio==3.38.00
+soundfile
+gradio==5.23.3
+gradio[oauth]
 pillow
 torchmetrics
 encodec
-protobuf==3.20.1
+protobuf>=3.20.1
 filetype
 wave
 mutagen
+fastapi>=0.88.0
+pydantic
+typer
+torchvision>=0.21.0 --extra-index-url https://download.pytorch.org/whl/cu124
+#torchtext
+pesq
+pystoi
+julius
+spacy==3.7.6
+sentencepiece
+num2words
+numpy<1.26.4
+matplotlib

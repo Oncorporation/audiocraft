@@ -25,7 +25,7 @@ import warnings
 from datetime import datetime
 from functools import cache
 from pathlib import Path
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Any
 from uuid import uuid4
 
 import gradio as gr
@@ -98,12 +98,12 @@ def render() -> None:
         label="Past images",
         show_label=True,
         elem_id="gradio_user_history_gallery",
-        object_fit="contain",
+        object_fit="cover",
         columns=5,
         height=600,
         preview=False,
         show_share_button=False,
-        show_download_button=False,
+        show_download_button=True,        
     )
     gr.Markdown(
         "User history is powered by"
@@ -351,7 +351,7 @@ def _copy_image(image: Image | np.ndarray | str | Path, dst_folder: Path) -> Pat
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
         if isinstance(image, Image):
-            dst = dst_folder / f"Path(file).name}_{uuid4().hex}.png"
+            dst = dst_folder / f"{Path(file).name}_{uuid4().hex}.png"
             image.save(dst)
             return dst
 
@@ -363,7 +363,7 @@ def _copy_image(image: Image | np.ndarray | str | Path, dst_folder: Path) -> Pat
             dst = Path(image)
         return dst  # Return the original file_location if an error occurs
 
-def _copy_file(file: any | np.ndarray | str | Path, dst_folder: Path) -> Path:
+def _copy_file(file: Any | np.ndarray | str | Path, dst_folder: Path) -> Path:
     try:
         """Copy file to the appropriate folder."""
         # Already a path => copy it

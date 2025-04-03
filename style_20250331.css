@@ -1,0 +1,215 @@
+.interface-wrapper {
+    max-width: 1024px;
+    margin: 0 auto;
+}
+
+.centered {
+    margin: 0 auto;
+    display: block;
+    text-align:center;
+}
+
+.solid {
+    opacity: 1.0 !important;
+    height: auto !important;
+}
+
+.intro {
+    font-size: 1.2em !important;
+    font-weight: bold;
+    text-align: center;
+    background-color: rgba(242, 218, 163, 0.62);
+}
+
+.dark .gradio-container.gradio-container-5-23-3 .contain .intro .prose {
+    background-color: rgba(41, 18, 5, 0.38) !important;
+}
+.toast-body.info {
+    background-color: rgba(242, 218, 163, 0.75);
+}
+.dark .toast-body.info {
+    background-color: rgba(128, 128, 128, 0.75);
+}
+
+.small {
+    font-size: smaller !important;
+    text-align: center;
+}
+
+.imgcontainer img {
+    object-fit: contain !important;
+}
+
+#examples {
+    font-weight: bolder;
+}
+
+--background-fill-primary: #FBCE50 !important;
+#col-container {
+    max-width: 1024px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+a {
+    text-decoration-line: underline;
+    font-weight: 600;
+}
+
+#btn-generate {
+    background-image: linear-gradient(to right bottom, rgb(157, 255, 157), rgb(229, 255, 235));
+    color: var(--primary-800);
+}
+
+    #btn-generate:hover {
+        background-image: linear-gradient(to right bottom, rgb(229, 255, 229), rgb(255, 255, 255));
+    }
+
+    #btn-generate:active {
+        background-image: linear-gradient(to right bottom, rgb(229, 255, 235), rgb(157, 255, 157));
+    }
+
+#versions {
+    margin-top: 1em;
+    width: 100%;
+    text-align: center;
+}
+
+.small-btn {
+    max-width: 75px;
+}
+
+#gallery .thumbnails, #lora_gallery .thumbnails {
+    flex-direction: column !important;
+    display: inline-flex !important;
+    flex-wrap: wrap !important;
+    position: relative !important;
+}
+
+#gallery caption.caption, #lora_gallery caption.caption {
+    flex-direction: row !important;
+    display: inline-flex !important;
+    flex-wrap: wrap;
+    white-space: unset !important;
+}
+
+#gallery .image-button img.with-caption, #lora_gallery .image-button img.with-caption {
+    object-fit: cover !important;
+    object-position: center !important;
+}
+
+#gallery button.preview, #lora_gallery button.preview {
+    position: relative !important;
+}
+
+.gradio-container::before {
+    content: ' ';
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.5;
+    background-image: url('gradio_api/file=./assets/Vermilion-Musical-Notes-Typography-No-Background.svg');
+    background-repeat: no-repeat;
+    background-position: 50% 25%;
+    /*background-color: rgba(0,0,0,0.5);*/
+    background-size: 45vh;
+    overflow: hidden;
+}
+
+.gradio-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -60%; /* Start off-screen */
+    width: 30%;
+    height: 100%;
+    background: linear-gradient( 120deg, rgba(255, 255, 255, 0) 10%, rgba(255, 255, 255, 0.60) 50%, rgba(255, 255, 255, 0) 90% );
+    animation: shine 30s infinite;
+}
+
+#component-0, #component-1 {
+    opacity: 0.9;
+}
+
+#excluded_colors {
+    width: 95%;
+    margin: 0 auto;
+    font-size: smaller;
+}
+
+@media only screen and (min-width: 1920px) {
+    .gradio-container, .gradio-container::before {
+        max-width: 1920px !important;
+    }
+}
+
+.sidebar .toggle-button::before {
+    content: 'Sketch Pad';
+    font-weight: bold;
+    transform: rotate(180deg);
+    margin-right: -120px;
+    width: 120px;
+    background-color: rgba(242, 218, 163, 0.62);
+}
+.dark .sidebar .toggle-button::before {
+    background-color: rgba(41, 18, 5, 0.38) !important;
+}
+    .sidebar.open .toggle-button::before {
+    content: '';
+}
+
+#sketchpd, #filters, #image_gen, #accordian_3d {
+    outline-color: #bbf7d0;
+    outline-style:solid;
+    outline-width: 1px;
+    outline-offset: 1px;
+    padding: 2px;    
+    border-radius:6px;
+}
+.outline-important {
+    outline-color: var(--accordion-text-color);
+    outline-style: solid;
+    outline-width: 2px;
+    outline-offset: 2px;
+    padding: 2px;
+    border-radius: 6px;
+}
+.selected.svelte-1tcem6n.svelte-1tcem6n {
+    font-size: large;
+    font-weight: bold;
+    color: var(--body-text-color);
+}
+.tab-wrapper.svelte-1tcem6n.svelte-1tcem6n {
+    height: var(--size-12);
+    padding-bottom: var(--size-1);
+    text-align: center;
+    background-blend-mode: multiply;
+    border-radius: var(--block-radius);
+    background-color: var(--block-background-fill);
+
+    outline-color: var(--accordion-text-color);
+    outline-style: solid;
+    outline-width: 2px;
+    outline-offset: 2px;
+    padding: 2px;
+    border-radius: 6px;
+}
+
+
+
+@keyframes shine {
+    0% {
+        left: -100%;
+    }
+
+    20% {
+        left: 100%;
+    }
+
+    100% {
+        left: 125%;
+    }
+}

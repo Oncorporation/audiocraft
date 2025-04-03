@@ -21,12 +21,17 @@ from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_write
 from audiocraft.data.audio_utils import apply_fade, apply_tafade, apply_splice_effect
 from audiocraft.utils.extend import generate_music_segments, add_settings_to_image, INTERRUPTING
+from audiocraft.utils import utils
 import numpy as np
 import random
-#from pathlib import Path
+import shutil
+from mutagen.mp4 import MP4
 #from typing import List, Union
 import librosa
-import user_history
+import modules.user_history
+from modules.version_info import versions_html, commit_hash, get_xformers_version
+from modules.gradio import *
+from modules.file_utils import get_file_parts, get_filename_from_filepath, convert_title_to_filename, get_filename, delete_file
 
 MODEL = None
 MODELS = None
@@ -36,8 +41,12 @@ UNLOAD_MODEL = False
 MOVE_TO_CPU = False
 MAX_PROMPT_INDEX = 0
 git = os.environ.get('GIT', "git")
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 #s.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128,expandable_segments:True"
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['CUDA_MODULE_LOADING']='LAZY'
+os.environ['USE_FLASH_ATTENTION'] = '1'
+os.environ['XFORMERS_FORCE_DISABLE_TRITON']= '1'
 
 def interrupt_callback():
     return INTERRUPTED
@@ -74,7 +83,7 @@ def toggle_audio_src(choice):
     else:
         return gr.update(source="upload", value=None, label="File")
 
-def make_waveform(*args, **kwargs):
+def get_waveform(*args, **kwargs):
     # Further remove some warnings.
     be = time.time()
     with warnings.catch_warnings():
@@ -82,6 +91,7 @@ def make_waveform(*args, **kwargs):
         out = gr.make_waveform(*args, **kwargs)
         print("Make a video took", time.time() - be)
         return out
+        
 
 def load_model(version):
     global MODEL, MODELS, UNLOAD_MODEL
@@ -104,32 +114,12 @@ def load_model(version):
         print("Cached model loaded in %.2fs" % (time.monotonic() - t1))
         return result
 
-def get_filename(file):
-    # extract filename from file object
-    filename = None
-    if file is not None:
-        filename = file.name
-    return filename
-
-def get_filename_from_filepath(filepath):
-    file_name = os.path.basename(filepath)
-    file_base, file_extension = os.path.splitext(file_name)
-    return file_base, file_extension
-
 def get_melody(melody_filepath):
         audio_data= list(librosa.load(melody_filepath, sr=None))
         audio_data[0], audio_data[1] = audio_data[1], audio_data[0]
         melody = tuple(audio_data)
         return melody
 
-
-def commit_hash():
-    try:
-        return subprocess.check_output([git, "rev-parse", "HEAD"], shell=False, encoding='utf8').strip()
-    except Exception:
-        return "<none>"
-
-    
 def git_tag():
     try:
         return subprocess.check_output([git, "describe", "--tags"], shell=False, encoding='utf8').strip()
@@ -141,32 +131,6 @@ def git_tag():
                 return next((line.strip() for line in file if line.strip()), "<none>")
         except Exception:
             return "<none>"
-        
-def get_xformers_version():
-    try:
-        import xformers
-        return xformers.__version__
-    except Exception:
-        return "<none>"
-    
-def versions_html():
-    import torch
-
-    python_version = ".".join([str(x) for x in sys.version_info[0:3]])
-    commit = commit_hash()
-    #tag = git_tag()
-
-    return f"""
-        version: <a href="https://github.com/Oncorporation/audiocraft/commit/{"" if commit == "<none>" else commit}" target="_blank">{"click" if commit == "<none>" else commit}</a>
-        &#x2000;•&#x2000;
-        python: <span title="{sys.version}">{python_version}</span>
-        &#x2000;•&#x2000;
-        torch: {getattr(torch, '__long_version__',torch.__version__)}
-        &#x2000;•&#x2000;
-        xformers: {get_xformers_version()}
-        &#x2000;•&#x2000;
-        gradio: {gr.__version__}
-        """
 
 def load_melody_filepath(melody_filepath, title):
     # get melody filename
@@ -193,12 +157,13 @@ def load_melody_filepath(melody_filepath, title):
     print(f"Melody length: {len(melody_data)}, Melody segments: {total_melodys}\n")
     MAX_PROMPT_INDEX = total_melodys   
 
-    return  gr.Textbox.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value="melody-large", interactive=True)
+    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value="melody", interactive=True)
 
 def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
     output_segments = None
     melody_name = "Not Used"
+    melody_extension = "Not Used"
     melody = None
     if melody_filepath:
         melody_name, melody_extension = get_filename_from_filepath(melody_filepath)
@@ -207,17 +172,23 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
     INTERRUPTED = False
     INTERRUPTING = False
     if temperature < 0:
+        temperature -0
         raise gr.Error("Temperature must be >= 0.")
     if topk < 0:
+        topk = 1
         raise gr.Error("Topk must be non-negative.")
     if topp < 0:
+        topp =1
         raise gr.Error("Topp must be non-negative.")
 
-    if MODEL is None or MODEL.name != model:
-        MODEL = load_model(model)
-    else:
-        if MOVE_TO_CPU:
-            MODEL.to('cuda')
+    try:
+        if MODEL is None or MODEL.name != model:
+            MODEL = load_model(model)
+        else:
+            if MOVE_TO_CPU:
+                MODEL.to('cuda')
+    except Exception as e:
+        raise gr.Error(f"Error loading model '{model}': {str(e)}. Try a different model.")
     
     # prevent hacking
     duration = min(duration, 720)
@@ -257,35 +228,41 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             rep_penalty=0.5
         )
 
-        if melody:
-            # todo return excess duration, load next model and continue in loop structure building up output_segments
-            if duration > MODEL.lm.cfg.dataset.segment_duration:
-                output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.lm.cfg.dataset.segment_duration, prompt_index, harmony_only=False)
+        try:
+            if melody:
+                # return excess duration, load next model and continue in loop structure building up output_segments
+                if duration > MODEL.lm.cfg.dataset.segment_duration:
+                    output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.lm.cfg.dataset.segment_duration, prompt_index, harmony_only=False)
+                else:
+                    # pure original code
+                    sr, melody = melody[0], torch.from_numpy(melody[1]).to(MODEL.device).float().t().unsqueeze(0)
+                    print(melody.shape)
+                    if melody.dim() == 2:
+                        melody = melody[None]
+                    melody = melody[..., :int(sr * MODEL.lm.cfg.dataset.segment_duration)]
+                    output = MODEL.generate_with_chroma(
+                        descriptions=[text],
+                        melody_wavs=melody,
+                        melody_sample_rate=sr,
+                        progress=True
+                    )
+                # All output_segments are populated, so we can break the loop or set duration to 0
+                break
             else:
-                # pure original code
-                sr, melody = melody[0], torch.from_numpy(melody[1]).to(MODEL.device).float().t().unsqueeze(0)
-                print(melody.shape)
-                if melody.dim() == 2:
-                    melody = melody[None]
-                melody = melody[..., :int(sr * MODEL.lm.cfg.dataset.segment_duration)]
-                output = MODEL.generate_with_chroma(
-                    descriptions=[text],
-                    melody_wavs=melody,
-                    melody_sample_rate=sr,
-                    progress=False
-                )
-            # All output_segments are populated, so we can break the loop or set duration to 0
-            break
-        else:
-            #output = MODEL.generate(descriptions=[text], progress=False)
-            if not output_segments:
-                next_segment = MODEL.generate(descriptions=[text], progress=False)
-                duration -= segment_duration
-            else:
-                last_chunk = output_segments[-1][:, :, -overlap*MODEL.sample_rate:]
-                next_segment = MODEL.generate_continuation(last_chunk, MODEL.sample_rate, descriptions=[text], progress=True)
-                duration -= segment_duration - overlap
-            output_segments.append(next_segment)
+                #output = MODEL.generate(descriptions=[text], progress=False)
+                if not output_segments:
+                    next_segment = MODEL.generate(descriptions=[text], progress=True)
+                    duration -= segment_duration
+                else:
+                    last_chunk = output_segments[-1][:, :, -overlap*MODEL.sample_rate:]
+                    next_segment = MODEL.generate_continuation(last_chunk, MODEL.sample_rate, descriptions=[text], progress=True)
+                    duration -= segment_duration - overlap
+                if next_segment != None:                
+                    output_segments.append(next_segment)
+        except Exception as e:
+            print(f"Error generating audio: {e}")
+            gr.Error(f"Error generating audio: {e}")
+            return None, None, seed
 
         if INTERRUPTING:
             INTERRUPTED = True
@@ -293,6 +270,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             print("Function execution interrupted!")
             raise gr.Error("Interrupted.")
 
+    print(f"\nOutput segments: {len(output_segments)}\n")
     if output_segments:
         try:
             # Combine the output segments into one long audio file or stack tracks
@@ -318,7 +296,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
                     ##overlapping_output = torch.cat([output[:, :, -overlap_samples:], output_segments[i][:, :, :overlap_samples]], dim=1) #stack tracks
                     ##print(f" overlap size stack:{overlapping_output.size()}\n output: {output.size()}\n segment: {output_segments[i].size()}")
                     #overlapping_output = torch.cat([output[:, :, -overlap_samples:], output_segments[i][:, :, :overlap_samples]], dim=2) #stack tracks
-                    #print(f" overlap size cat:{overlapping_output.size()}\n output: {output.size()}\n segment: {output_segments[i].size()}")               
+                    #print(f" overlap size cat:{overlapping_output.size()}\n output: {output.size()}\n segment: {output_segments[i].size()}")
                     output = torch.cat([output[:, :, :-overlap_samples], overlapping_output, output_segments[i][:, :, overlap_samples:]], dim=dimension)
                 else:
                     output = torch.cat([output, output_segments[i]], dim=dimension)
@@ -327,38 +305,39 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             print(f"Error combining segments: {e}. Using the first segment only.")
             output = output_segments[0].detach().cpu().float()[0]
     else:
-        output = output.detach().cpu().float()[0]
+        if (output is None) or (output.dim() == 0):
+            return None, None, seed
+        else:
+            output = output.detach().cpu().float()[0]
     profile: gr.OAuthProfile | None = None
-    with NamedTemporaryFile("wb", suffix=".wav", delete=False) as file:        
+    title_file_name = convert_title_to_filename(title)
+    with NamedTemporaryFile("wb", suffix=".wav", delete=False, prefix = title_file_name) as file:
         video_description = f"{text}\n Duration: {str(initial_duration)} Dimension: {dimension}\n Top-k:{topk} Top-p:{topp}\n Randomness:{temperature}\n cfg:{cfg_coef} overlap: {overlap}\n Seed: {seed}\n Model: {model}\n Melody Condition:{melody_name}\n Sample Segment: {prompt_index}"
         if include_settings or include_title:
             background = add_settings_to_image(title if include_title else "", video_description if include_settings else "", background_path=background, font=settings_font, font_color=settings_font_color)
         audio_write(
             file.name, output, MODEL.sample_rate, strategy="loudness",
-            loudness_headroom_db=18, loudness_compressor=True, add_suffix=False, channels=2)        
-        waveform_video = make_waveform(file.name,bg_image=background, bar_count=45)
+            loudness_headroom_db=18, loudness_compressor=True, add_suffix=False, channels=2)
+        waveform_video_path = get_waveform(file.name,bg_image=background, bar_count=45, name = title_file_name)
         # Remove the extension from file.name
         file_name_without_extension = os.path.splitext(file.name)[0]
-    
-        # Set waveform_video name with the updated filename and extension
-        waveform_video.name = file_name_without_extension + waveform_video.extension
-        
-        # Set the waveform_video source to the updated filename
-        waveform_video.source = file_name_without_extension + waveform_video.extension
-        
-        # Set the waveform_video label to the updated filename
-        waveform_video.label = file_name_without_extension + waveform_video.extension
-        
-        # Set the waveform_video description to the prompt description
-        waveform_video.description = f"{text}\n Duration: {str(initial_duration)}"
+        # Get the directory, filename, name, extension, and new extension of the waveform video path
+        video_dir, video_name, video_name, video_ext, video_new_ext = get_file_parts(waveform_video_path)
+
+        new_video_path = os.path.join(video_dir, title_file_name + video_new_ext)
+ 
+        mp4 = MP4(waveform_video_path)
+        mp4["©nam"] = title_file_name        # Title tag
+        mp4["desc"] = f"{text}\n Duration: {str(initial_duration)}" # Description tag
+
         commit = commit_hash()
         metadata={
                 "prompt": text,
                 "negative_prompt": "",
                 "Seed": seed,
                 "steps": 1,
-                "width": 1000,
-                "height":666,
+                "width": "768px",
+                "height":"512px",
                 "Dimension": dimension,
                 "Top-k": topk,
                 "Top-p":topp,
@@ -369,7 +348,6 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
                 "Sample Segment": prompt_index,
                 "Duration": initial_duration,
                 "Audio": file.name,
-                "Video": waveform_video.name,
                 "font": settings_font,
                 "font_color": settings_font_color,
                 "harmony_only": harmony_only,
@@ -382,26 +360,43 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
                 "version": gr.__version__,
                 "model_version": MODEL.version,
                 "model_name": MODEL.name,
-                "model_description": MODEL.description,
-                "melody_name" : melody_name,
-                "melody_extension" : melody_extension,
-                "hostname": os.uname().nodename,
-                "version" : f"""https://github.com/Oncorporation/audiocraft/commit/{"huggingface" if commit == "<none>" else commit}""",
+                "model_description": f"{MODEL.audio_channels} channels, {MODEL.sample_rate} Hz",
+                "melody_name" : melody_name if melody_name else "",
+                "melody_extension" : melody_extension if melody_extension else "",
+                "hostname": "https://huggingface.co/spaces/Surn/UnlimitedMusicGen",
+                "version" : f"""https://huggingface.co/spaces/Surn/UnlimitedMusicGen/commit/{"huggingface" if commit == "<none>" else commit}""",
                 "python" : sys.version,
                 "torch" : getattr(torch, '__long_version__',torch.__version__), 
                 "xformers": get_xformers_version(), 
                 "gradio": gr.__version__,
-                "huggingface_space": os.environ.get('SPACE_ID', '')
+                "huggingface_space": os.environ.get('SPACE_ID', ''),
+                "CUDA": f"""{"CUDA is available. device: " + torch.cuda.get_device_name(0) + " version: " + torch.version.cuda if torch.cuda.is_available() else "CUDA is not available."}""",
         }
-        waveform_video.metadata = metadata
-        
+        # Add additional metadata from the metadata dictionary (if it exists)
+        for key, value in metadata.items():
+            mp4[key] = str(value)  # Convert values to strings as required by mutagen
 
-        if waveform_video:
-            user_history.save_file(
+        # Save the metadata changes to the file
+        mp4.save()
+        
+        try:
+            if os.path.exists(new_video_path):
+                delete_file(new_video_path)
+            # Open the original MP4 file in binary read mode and the new file in binary write mode
+            with open(waveform_video_path, "rb") as src, open(new_video_path, "wb") as dst:
+                if os.path.exists(waveform_video_path):
+                    # Copy the contents from the source file to the destination file
+                    shutil.copyfileobj(src, dst)
+                    waveform_video_path = new_video_path
+        except Exception as e:
+            print(f"Error copying file: {e}")
+
+        if waveform_video_path:
+            modules.user_history.save_file(
             profile=profile,
             image=background,
             audio=file,
-            video=waveform_video,
+            video=waveform_video_path,
             label=text,
             metadata=metadata,
         )
@@ -413,28 +408,22 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         MODEL = None
     torch.cuda.empty_cache()
     torch.cuda.ipc_collect()
-    return waveform_video, file.name, seed
+    return waveform_video_path, file.name, seed
 
-
+gr.set_static_paths(paths=["fonts/","assets/"])
 def ui(**kwargs):
-    css="""
-    #col-container {max-width: 910px; margin-left: auto; margin-right: auto;}    
-    a {text-decoration-line: underline; font-weight: 600;}
-    #btn-generate {background-image:linear-gradient(to right bottom, rgb(157, 255, 157), rgb(229, 255, 235));}
-    #btn-generate:hover {background-image:linear-gradient(to right bottom, rgb(229, 255, 229), rgb(255, 255, 255));}
-    #btn-generate:active {background-image:linear-gradient(to right bottom, rgb(229, 255, 235), rgb(157, 255, 157));}
-    #versions {margin-top: 1em; width:100%; text-align:center;}
-    .small-btn {max-width:75px;}
-    """
-    with gr.Blocks(title="UnlimitedMusicGen", css=css) as interface:
+    with gr.Blocks(title="UnlimitedMusicGen",css_paths="style_20250331.css", theme='Surn/beeuty') as interface:
         with gr.Tab("UnlimitedMusicGen"):
             gr.Markdown(
                 """
-                # Unlimited MusicGen
-                This is your private demo for [MusicGen](https://github.com/facebookresearch/audiocraft), a simple and controllable model for music generation
-
-                presented at: ["Simple and Controllable Music Generation"](https://huggingface.co/papers/2306.05284)
-                Todo: Working on improved transitions between 30 second segments, improve Interrupt.
+            # UnlimitedMusicGen
+            This is your private demo for [UnlimitedMusicGen](https://github.com/Oncorporation/audiocraft), a simple and controllable model for music generation
+            presented at: ["Simple and Controllable Music Generation"](https://huggingface.co/papers/2306.05284)
+            
+            Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
+                        
+            Todo: Working on improved Interrupt.
+            Theme Available at ["Surn/Beeuty"](https://huggingface.co/spaces/Surn/Beeuty)
 
                 """
             )
@@ -446,13 +435,13 @@ def ui(**kwargs):
                         <img style="margin-bottom: 0em;display: inline;margin-top: -.25em;" src="https://bit.ly/3gLdBN6" alt="Duplicate Space"></a>
                         to use it privately, or use the <a href="https://huggingface.co/spaces/facebook/MusicGen">public demo</a>
                         """)
-                with gr.Row():
+            with gr.Row():
                     with gr.Column():
                         with gr.Row():
                             text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi")
                             with gr.Column():                        
                                 duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True)
-                                model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-melody", "stereo-medium", "stereo-small", "stereo-large", "stereo-melody-large"], label="AI Model", value="melody-large", interactive=True)
+                                model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-small", "stereo-medium", "stereo-large", "stereo-melody", "stereo-melody-large"], label="AI Model", value="melody", interactive=True)
                         with gr.Row():
                             submit = gr.Button("Generate", elem_id="btn-generate")
                             # Adapted from https://github.com/rkfg/audiocraft/blob/long/app.py, MIT license.
@@ -460,13 +449,13 @@ def ui(**kwargs):
                         with gr.Row():
                             with gr.Column():
                                 radio = gr.Radio(["file", "mic"], value="file", label="Condition on a melody (optional) File or Mic")
-                                melody_filepath = gr.Audio(source="upload", type="filepath", label="Melody Condition (optional)", interactive=True, elem_id="melody-input")                        
+                                melody_filepath = gr.Audio(sources=["upload"], type="filepath", label="Melody Condition (optional)", interactive=True, elem_id="melody-input")                        
                             with gr.Column():
                                 harmony_only = gr.Radio(label="Use Harmony Only",choices=["No", "Yes"], value="No", interactive=True, info="Remove Drums?")
                                 prompt_index = gr.Slider(label="Melody Condition Sample Segment", minimum=-1, maximum=MAX_PROMPT_INDEX, step=1, value=0, interactive=True, info="Which 30 second segment to condition with, - 1 condition each segment independantly")                                                
                         with gr.Accordion("Video", open=False):
                             with gr.Row():
-                                background= gr.Image(value="./assets/background.png", source="upload", label="Background", shape=(768,512), type="filepath", interactive=True)
+                                background= gr.Image(value="./assets/background.png", sources=["upload"], label="Background", width=768, height=512, type="filepath", interactive=True)
                                 with gr.Column():
                                     include_title = gr.Checkbox(label="Add Title", value=True, interactive=True)
                                     include_settings = gr.Checkbox(label="Add Settings to background", value=True, interactive=True)
@@ -534,9 +523,9 @@ def ui(**kwargs):
                 outputs=[output]
             )
             gr.HTML(value=versions_html(), visible=True, elem_id="versions")
-        with gr.Tab("User History"):
-            user_history.render()
-            
+        with gr.Tab("User History") as history_tab:
+            modules.user_history.render()
+
         # Show the interface
         launch_kwargs = {}
         username = kwargs.get('username')
