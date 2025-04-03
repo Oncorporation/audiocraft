@@ -492,7 +492,7 @@ def ui(**kwargs):
             This is your private demo for [UnlimitedMusicGen](https://github.com/Oncorporation/audiocraft), a simple and controllable model for music generation
             presented at: ["Simple and Controllable Music Generation"](https://huggingface.co/papers/2306.05284)
             
-                Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
+            Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
                         
             Todo: Working on improved Interrupt.
             Theme Available at ["Surn/Beeuty"](https://huggingface.co/spaces/Surn/Beeuty)
@@ -708,7 +708,7 @@ if __name__ == "__main__":
         launch_kwargs['inbrowser'] = args.inbrowser
     if args.share:
         launch_kwargs['share'] = args.share
-    launch_kwargs['favicon_path']= "./assets/favicon.ico"
+    launch_kwargs['favicon_path']= "./assets/favicon.ico"    
 
 
     UNLOAD_MODEL = args.unload_model
