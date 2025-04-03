@@ -491,7 +491,7 @@ def ui(**kwargs):
                     [
                         "4/4 120bpm 320kbps 48khz, An 80s driving pop song with heavy drums and synth pads in the background",
                         "./assets/bach.mp3",
-                        "melody",
+                        "stereo-melody-large",
                         "80s Pop Synth"
                     ],
                     [
@@ -503,13 +503,13 @@ def ui(**kwargs):
                     [
                         "4/4 120bpm 320kbps 48khz, 90s rock song with electric guitar and heavy drums",
                         None,
-                        "medium", 
+                        "stereo-medium", 
                         "90s Rock Guitar"
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, a light and cheerly EDM track, with syncopated drums, aery pads, and strong emotions",
                         "./assets/bach.mp3",
-                        "melody",
+                        "melody-large",
                         "EDM my Bach"
                     ],
                     [

@@ -7,4 +7,4 @@
 # flake8: noqa
 from . import data, modules, models
 
-__version__ = '1.2.2a4'
+__version__ = '1.4.Surn'
