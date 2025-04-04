@@ -8,3 +8,6 @@ include audiocraft/py.typed
 include assets/*.mp3
 include assets/*.ico
 include assets/*.png
+include assets/*.ttf
+include assets/*.svg
+include assets/*.gif
