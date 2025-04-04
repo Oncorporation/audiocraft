@@ -126,8 +126,9 @@ a {
     left: -60%; /* Start off-screen */
     width: 30%;
     height: 100%;
-    background: linear-gradient( 120deg, rgba(255, 255, 255, 0) 10%, rgba(255, 255, 255, 0.60) 50%, rgba(255, 255, 255, 0) 90% );
+    background: linear-gradient( 92deg, rgba(255, 255, 255, 0) 25%, rgba(255, 255, 255, 0.60) 50%, rgba(255, 255, 255, 0) 75% );
     animation: shine 30s infinite;
+    opacity:0.35;
 }
 
 #component-0, #component-1 {

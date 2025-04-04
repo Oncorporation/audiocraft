@@ -13,11 +13,11 @@ from setuptools import setup, find_packages
 
 
 NAME = 'audiocraft'
-DESCRIPTION = 'Audio research library for PyTorch'
+DESCRIPTION = 'Audio generation research library for PyTorch'
 
-URL = 'https://github.com/fairinternal/audiocraft'
+URL = 'https://github.com/facebookresearch/audiocraft'
 AUTHOR = 'FAIR Speech & Audio'
-EMAIL = 'defossez@meta.com'
+EMAIL = 'defossez@meta.com, jadecopet@meta.com'
 REQUIRES_PYTHON = '>=3.8.0'
 
 for line in open('audiocraft/__init__.py'):

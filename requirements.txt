@@ -12,9 +12,8 @@ tqdm
 transformers>=4.48.0  # need Encodec there.
 xformers>=0.0.23 --index-url https://download.pytorch.org/whl/cu124
 demucs
-librosa
+librosa==0.11.0
 soundfile
-gradio==5.23.3
 gradio[oauth]
 pillow
 torchmetrics

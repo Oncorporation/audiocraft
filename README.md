@@ -35,7 +35,7 @@ Check your video's generative metadata with https://mediaarea.net/en/MediaInfo
 Also note that I wrote an extension to Gradio for the waveform in the video after v4.48.0 removed it.
 
 The key update here is in the extend utility. We segment melody input and then condition the next segment with current tensors and tensors from the current time in the conditioning melody file.
-This allows us to make entire songs that follow the same arraigement of the original.
+This allows us to follow the same arraingement of the original melody.
 
 **Thank you Huggingface for the community grant to run this project**!!
 

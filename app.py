@@ -43,10 +43,10 @@ MAX_PROMPT_INDEX = 0
 git = os.environ.get('GIT', "git")
 #s.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128,expandable_segments:True"
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['CUDA_MODULE_LOADING']='LAZY'
-os.environ['USE_FLASH_ATTENTION'] = '1'
-os.environ['XFORMERS_FORCE_DISABLE_TRITON']= '1'
+# os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# os.environ['CUDA_MODULE_LOADING']='LAZY'
+# os.environ['USE_FLASH_ATTENTION'] = '1'
+# os.environ['XFORMERS_FORCE_DISABLE_TRITON']= '1'
 
 def interrupt_callback():
     return INTERRUPTED
@@ -132,12 +132,12 @@ def git_tag():
         except Exception:
             return "<none>"
 
-def load_melody_filepath(melody_filepath, title):
+def load_melody_filepath(melody_filepath, title, assigned_model):
     # get melody filename
     #$Union[str, os.PathLike]    
     symbols = ['_', '.', '-']
     if (melody_filepath is None) or (melody_filepath == ""):
-        return title, gr.update(maximum=0, value=0) , gr.update(value="melody-large", interactive=True)   
+        return title, gr.update(maximum=0, value=0) , gr.update(value="medium", interactive=True)
     
     if (title is None) or ("MusicGen" in title) or (title == ""):
         melody_name, melody_extension = get_filename_from_filepath(melody_filepath)
@@ -147,7 +147,10 @@ def load_melody_filepath(melody_filepath, title):
     else:
         melody_name = title
 
-    print(f"Melody name: {melody_name}, Melody Filepath: {melody_filepath}\n")
+    if ("melody" not in assigned_model):
+        assigned_model = "melody-large"
+
+    print(f"Melody name: {melody_name}, Melody Filepath: {melody_filepath}, Model: {assigned_model}\n")
 
     # get melody length in number of segments and modify the UI
     melody = get_melody(melody_filepath)
@@ -157,7 +160,7 @@ def load_melody_filepath(melody_filepath, title):
     print(f"Melody length: {len(melody_data)}, Melody segments: {total_melodys}\n")
     MAX_PROMPT_INDEX = total_melodys   
 
-    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value="melody", interactive=True)
+    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value=assigned_model, interactive=True)
 
 def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
@@ -244,7 +247,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
                         descriptions=[text],
                         melody_wavs=melody,
                         melody_sample_rate=sr,
-                        progress=True
+                        progress=False
                     )
                 # All output_segments are populated, so we can break the loop or set duration to 0
                 break
@@ -410,9 +413,9 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
     torch.cuda.ipc_collect()
     return waveform_video_path, file.name, seed
 
-gr.set_static_paths(paths=["fonts/","assets/"])
+gr.set_static_paths(paths=["fonts/","assets/","images/"])
 def ui(**kwargs):
-    with gr.Blocks(title="UnlimitedMusicGen",css_paths="style_20250331.css", theme='Surn/beeuty') as interface:
+    with gr.Blocks(title="UnlimitedMusicGen",css_paths="style_20250331.css", theme='Surn/beeuty') as demo:
         with gr.Tab("UnlimitedMusicGen"):
             gr.Markdown(
                 """
@@ -441,7 +444,7 @@ def ui(**kwargs):
                             text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi")
                             with gr.Column():                        
                                 duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True)
-                                model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-small", "stereo-medium", "stereo-large", "stereo-melody", "stereo-melody-large"], label="AI Model", value="melody", interactive=True)
+                                model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-small", "stereo-medium", "stereo-large", "stereo-melody", "stereo-melody-large"], label="AI Model", value="medium", interactive=True)
                         with gr.Row():
                             submit = gr.Button("Generate", elem_id="btn-generate")
                             # Adapted from https://github.com/rkfg/audiocraft/blob/long/app.py, MIT license.
@@ -482,22 +485,21 @@ def ui(**kwargs):
                         seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
 
             radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False)
-            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title], outputs=[title, prompt_index , model], api_name="melody_filepath_change", queue=False)
+            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model], outputs=[title, prompt_index , model], api_name="melody_filepath_change", queue=False)
             reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed")
             submit.click(predict, inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only], outputs=[output, wave_file, seed_used], api_name="submit")
             gr.Examples(
-                fn=predict,
                 examples=[
                     [
                         "4/4 120bpm 320kbps 48khz, An 80s driving pop song with heavy drums and synth pads in the background",
                         "./assets/bach.mp3",
-                        "stereo-melody-large",
+                        "melody",
                         "80s Pop Synth"
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, A cheerful country song with acoustic guitars",
                         "./assets/bolero_ravel.mp3",
-                        "melody",
+                        "stereo-melody-large",
                         "Country Guitar"
                     ],
                     [
@@ -542,7 +544,7 @@ def ui(**kwargs):
 
 
 
-        interface.queue(max_size=10,  api_open=False).launch(**launch_kwargs)
+        demo.queue(max_size=10, api_open=False).launch(**launch_kwargs)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -596,7 +598,7 @@ if __name__ == "__main__":
         launch_kwargs['inbrowser'] = args.inbrowser
     if args.share:
         launch_kwargs['share'] = args.share
-    launch_kwargs['favicon_path']= "./assets/favicon.ico"    
+    launch_kwargs['favicon_path']= "./assets/favicon.ico"
 
 
     UNLOAD_MODEL = args.unload_model
