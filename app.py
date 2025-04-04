@@ -708,7 +708,7 @@ if __name__ == "__main__":
         launch_kwargs['inbrowser'] = args.inbrowser
     if args.share:
         launch_kwargs['share'] = args.share
-    launch_kwargs['favicon_path']= "./assets/favicon.ico"    
+    launch_kwargs['favicon_path']= "./assets/favicon.ico"
 
 
     UNLOAD_MODEL = args.unload_model
