@@ -50,6 +50,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128,expandable_segmen
 # os.environ['USE_FLASH_ATTENTION'] = '1'
 # os.environ['XFORMERS_FORCE_DISABLE_TRITON']= '1'
 
+
 def interrupt_callback():
     return INTERRUPTED
 
@@ -491,7 +492,7 @@ def ui(**kwargs):
             This is your private demo for [UnlimitedMusicGen](https://github.com/Oncorporation/audiocraft), a simple and controllable model for music generation
             presented at: ["Simple and Controllable Music Generation"](https://huggingface.co/papers/2306.05284)
             
-                Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
+            Disclaimer: This won't run on CPU only. Clone this App and run on GPU instance!
                         
             Todo: Working on improved Interrupt.
             Theme Available at ["Surn/Beeuty"](https://huggingface.co/spaces/Surn/Beeuty)
@@ -556,7 +557,7 @@ def ui(**kwargs):
                     with gr.Column() as c:
                         output = gr.Video(label="Generated Music", interactive=False, show_download_button=True, show_share_button=True, autoplay=False)
                         wave_file = gr.File(label=".wav file", elem_id="output_wavefile", interactive=True)
-                        seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
+                        seed_used = gr.Number(label='Seed used', value=-1, interactive=False)                        
 
             radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False, api_name="audio_src_change")
             video_orientation.change(load_background_filepath, inputs=[video_orientation], outputs=[background], queue=False, show_progress=False, api_name="video_orientation_change")
