@@ -17,6 +17,7 @@ from pathlib import Path
 import time
 import typing as tp
 import warnings
+from tqdm import tqdm
 from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_write
 from audiocraft.data.audio_utils import apply_fade, apply_tafade, apply_splice_effect
@@ -47,6 +48,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128,expandable_segmen
 # os.environ['CUDA_MODULE_LOADING']='LAZY'
 # os.environ['USE_FLASH_ATTENTION'] = '1'
 # os.environ['XFORMERS_FORCE_DISABLE_TRITON']= '1'
+
 
 def interrupt_callback():
     return INTERRUPTED
@@ -162,7 +164,7 @@ def load_melody_filepath(melody_filepath, title, assigned_model):
 
     return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value=assigned_model, interactive=True)
 
-def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False):
+def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, progress=gr.Progress(track_tqdm=True)):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
     output_segments = None
     melody_name = "Not Used"
@@ -228,14 +230,16 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             cfg_coef=cfg_coef,
             duration=segment_duration,
             two_step_cfg=False,
+            extend_stride=10,
             rep_penalty=0.5
         )
+        MODEL.set_custom_progress_callback(gr.Progress(track_tqdm=True))
 
         try:
             if melody:
                 # return excess duration, load next model and continue in loop structure building up output_segments
                 if duration > MODEL.lm.cfg.dataset.segment_duration:
-                    output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.lm.cfg.dataset.segment_duration, prompt_index, harmony_only=False)
+                    output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.lm.cfg.dataset.segment_duration, prompt_index, harmony_only=False, progress=gr.Progress(track_tqdm=True))
                 else:
                     # pure original code
                     sr, melody = melody[0], torch.from_numpy(melody[1]).to(MODEL.device).float().t().unsqueeze(0)
@@ -247,20 +251,20 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
                         descriptions=[text],
                         melody_wavs=melody,
                         melody_sample_rate=sr,
-                        progress=False
+                        progress=True, progress_callback=gr.Progress(track_tqdm=True)
                     )
                 # All output_segments are populated, so we can break the loop or set duration to 0
                 break
             else:
                 #output = MODEL.generate(descriptions=[text], progress=False)
                 if not output_segments:
-                    next_segment = MODEL.generate(descriptions=[text], progress=True)
+                    next_segment = MODEL.generate(descriptions=[text], progress=True, progress_callback=gr.Progress(track_tqdm=True))
                     duration -= segment_duration
                 else:
                     last_chunk = output_segments[-1][:, :, -overlap*MODEL.sample_rate:]
-                    next_segment = MODEL.generate_continuation(last_chunk, MODEL.sample_rate, descriptions=[text], progress=True)
+                    next_segment = MODEL.generate_continuation(last_chunk, MODEL.sample_rate, descriptions=[text], progress=True, progress_callback=gr.Progress(track_tqdm=True))
                     duration -= segment_duration - overlap
-                if next_segment != None:                
+                if next_segment != None:
                     output_segments.append(next_segment)
         except Exception as e:
             print(f"Error generating audio: {e}")
@@ -312,7 +316,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             return None, None, seed
         else:
             output = output.detach().cpu().float()[0]
-    profile: gr.OAuthProfile | None = None
+
     title_file_name = convert_title_to_filename(title)
     with NamedTemporaryFile("wb", suffix=".wav", delete=False, prefix = title_file_name) as file:
         video_description = f"{text}\n Duration: {str(initial_duration)} Dimension: {dimension}\n Top-k:{topk} Top-p:{topp}\n Randomness:{temperature}\n cfg:{cfg_coef} overlap: {overlap}\n Seed: {seed}\n Model: {model}\n Melody Condition:{melody_name}\n Sample Segment: {prompt_index}"
@@ -357,7 +361,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
                 "background": background,
                 "include_title": include_title,
                 "include_settings": include_settings,
-                "profile": profile,
+                "profile": "Satoshi Nakamoto" if profile.value is None else profile.value.username,
                 "commit": commit_hash(),
                 "tag": git_tag(),
                 "version": gr.__version__,
@@ -396,11 +400,11 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
 
         if waveform_video_path:
             modules.user_history.save_file(
-            profile=profile,
+            profile=profile.value,
             image=background,
-            audio=file,
+            audio=file.name,
             video=waveform_video_path,
-            label=text,
+            label=title,
             metadata=metadata,
         )
         
@@ -482,12 +486,12 @@ def ui(**kwargs):
                     with gr.Column() as c:
                         output = gr.Video(label="Generated Music")
                         wave_file = gr.File(label=".wav file", elem_id="output_wavefile", interactive=True)
-                        seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
+                        seed_used = gr.Number(label='Seed used', value=-1, interactive=False)                        
 
             radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False)
             melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model], outputs=[title, prompt_index , model], api_name="melody_filepath_change", queue=False)
             reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed")
-            submit.click(predict, inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only], outputs=[output, wave_file, seed_used], api_name="submit")
+            
             gr.Examples(
                 examples=[
                     [
@@ -524,10 +528,25 @@ def ui(**kwargs):
                 inputs=[text, melody_filepath, model, title],
                 outputs=[output]
             )
-            gr.HTML(value=versions_html(), visible=True, elem_id="versions")
+            
         with gr.Tab("User History") as history_tab:
             modules.user_history.render()
+        user_profile = gr.State(None)
             
+        with gr.Row("Versions") as versions_row:
+            gr.HTML(value=versions_html(), visible=True, elem_id="versions")
+
+        submit.click(
+            modules.user_history.get_profile,
+            inputs=[],
+            outputs=[user_profile],
+            queue=True,
+            api_name="submit"
+         ).then(
+             predict,
+             inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only, user_profile],
+             outputs=[output, wave_file, seed_used])
+
         # Show the interface
         launch_kwargs = {}
         share = kwargs.get('share', False)
@@ -541,7 +560,7 @@ def ui(**kwargs):
         if share:
             launch_kwargs['share'] = share
         launch_kwargs['favicon_path']= "./assets/favicon.ico"
-
+        
 
 
         demo.queue(max_size=10, api_open=False).launch(**launch_kwargs)

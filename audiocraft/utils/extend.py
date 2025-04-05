@@ -12,6 +12,7 @@ import requests
 from io import BytesIO
 from huggingface_hub import hf_hub_download
 import librosa
+import gradio as gr
 
 
 INTERRUPTING = False
@@ -48,7 +49,7 @@ def separate_audio_segments(audio, segment_duration=30, overlap=1):
     print(f"separate_audio_segments: {len(segments)} segments of length {segment_samples // sr} seconds")
     return segments
 
-def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:int=1, segment_duration:int=30, prompt_index:int=0, harmony_only:bool= False):
+def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:int=1, segment_duration:int=30, prompt_index:int=0, harmony_only:bool= False, progress= gr.Progress(track_tqdm=True)):
     # generate audio segments
     melody_segments = separate_audio_segments(melody, segment_duration, 0) 
     
