@@ -236,7 +236,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         MODEL.set_custom_progress_callback(gr.Progress(track_tqdm=True))
 
         try:
-            if melody:
+            if melody and ("melody" in model):
                 # return excess duration, load next model and continue in loop structure building up output_segments
                 if duration > MODEL.lm.cfg.dataset.segment_duration:
                     output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.lm.cfg.dataset.segment_duration, prompt_index, harmony_only=False, progress=gr.Progress(track_tqdm=True))
