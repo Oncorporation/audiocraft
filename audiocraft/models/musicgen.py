@@ -15,6 +15,7 @@ import warnings
 
 import omegaconf
 import torch
+import gradio as gr
 
 from .encodec import CompressionModel
 from .lm import LMModel
@@ -67,7 +68,7 @@ class MusicGen:
         self.device = next(iter(lm.parameters())).device
         self.generation_params: dict = {}
         self.set_generation_params(duration=self.duration)  # 15 seconds by default
-        self._progress_callback: tp.Optional[tp.Callable[[int, int], None]] = None
+        self._progress_callback: tp.Union[tp.Callable[[int, int], None], gr.Progress] = None
         if self.device.type == 'cpu':
             self.autocast = TorchAutocast(enabled=False)
         else:
@@ -142,7 +143,7 @@ class MusicGen:
     def set_generation_params(self, use_sampling: bool = True, top_k: int = 250,
                               top_p: float = 0.0, temperature: float = 1.0,
                               duration: float = 30.0, cfg_coef: float = 3.0,
-                              two_step_cfg: bool = False, extend_stride: float = 18, rep_penalty: float = None):
+                              two_step_cfg: bool = False, extend_stride: float = 10, rep_penalty: float = None):
         """Set the generation parameters for MusicGen.
 
         Args:
@@ -173,12 +174,12 @@ class MusicGen:
             'two_step_cfg': two_step_cfg,
         }
 
-    def set_custom_progress_callback(self, progress_callback: tp.Optional[tp.Callable[[int, int], None]] = None):
+    def set_custom_progress_callback(self, progress_callback: tp.Union[tp.Callable[[int, int], None],gr.Progress] = None):
         """Override the default progress callback."""
         self._progress_callback = progress_callback
 
     def generate_unconditional(self, num_samples: int, progress: bool = False,
-                               return_tokens: bool = False) -> tp.Union[torch.Tensor,
+                               return_tokens: bool = False, progress_callback: gr.Progress = None) -> tp.Union[torch.Tensor, 
                                                                         tp.Tuple[torch.Tensor, torch.Tensor]]:
         """Generate samples in an unconditional manner.
 
@@ -194,7 +195,7 @@ class MusicGen:
             return self.generate_audio(tokens), tokens
         return self.generate_audio(tokens)
 
-    def generate(self, descriptions: tp.List[str], progress: bool = False, return_tokens: bool = False) \
+    def generate(self, descriptions: tp.List[str], progress: bool = False, return_tokens: bool = False, progress_callback: gr.Progress = None) \
             -> tp.Union[torch.Tensor, tp.Tuple[torch.Tensor, torch.Tensor]]:
         """Generate samples conditioned on text.
 
@@ -212,7 +213,7 @@ class MusicGen:
 
     def generate_with_chroma(self, descriptions: tp.List[str], melody_wavs: MelodyType,
                              melody_sample_rate: int, progress: bool = False,
-                             return_tokens: bool = False) -> tp.Union[torch.Tensor,
+                             return_tokens: bool = False, progress_callback=gr.Progress(track_tqdm=True)) -> tp.Union[torch.Tensor,
                                                                       tp.Tuple[torch.Tensor, torch.Tensor]]:
         """Generate samples conditioned on text and melody.
 
@@ -250,7 +251,7 @@ class MusicGen:
         return self.generate_audio(tokens)
 
     def generate_with_all(self, descriptions: tp.List[str], melody_wavs: MelodyType,
-                             sample_rate: int, progress: bool = False, prompt: tp.Optional[torch.Tensor] = None, return_tokens: bool = False) \
+                             sample_rate: int, progress: bool = False, prompt: tp.Optional[torch.Tensor] = None, return_tokens: bool = False, progress_callback: gr.Progress = None) \
             -> tp.Union[torch.Tensor, tp.Tuple[torch.Tensor, torch.Tensor]]:
         """Generate samples conditioned on text and melody and audio prompts.
         Args:
@@ -307,7 +308,7 @@ class MusicGen:
 
     def generate_continuation(self, prompt: torch.Tensor, prompt_sample_rate: int,
                               descriptions: tp.Optional[tp.List[tp.Optional[str]]] = None,
-                              progress: bool = False, return_tokens: bool = False) \
+                              progress: bool = False, return_tokens: bool = False, progress_callback: gr.Progress = None) \
             -> tp.Union[torch.Tensor, tp.Tuple[torch.Tensor, torch.Tensor]]:
         """Generate samples conditioned on audio prompts.
 
@@ -317,7 +318,8 @@ class MusicGen:
             prompt_sample_rate (int): Sampling rate of the given audio waveforms.
             descriptions (list of str, optional): A list of strings used as text conditioning. Defaults to None.
             progress (bool, optional): Flag to display progress of the generation process. Defaults to False.
-            return_tokens (bool, optional): If True, also return the generated tokens. Defaults to False.
+            return_tokens (bool, optional): If True, also return the generated tokens. Defaults to False.\
+            This is truly a hack and does not follow the progression of conditioning melody or previously generated audio.
         """
         if prompt.dim() == 2:
             prompt = prompt[None]
@@ -338,7 +340,8 @@ class MusicGen:
             self,
             descriptions: tp.Sequence[tp.Optional[str]],
             prompt: tp.Optional[torch.Tensor],
-            melody_wavs: tp.Optional[MelodyList] = None,
+            melody_wavs: tp.Optional[MelodyList] = None, 
+            progress_callback: tp.Optional[gr.Progress] = None
     ) -> tp.Tuple[tp.List[ConditioningAttributes], tp.Optional[torch.Tensor]]:
         """Prepare model inputs.
 
@@ -392,7 +395,7 @@ class MusicGen:
         return attributes, prompt_tokens
 
     def _generate_tokens(self, attributes: tp.List[ConditioningAttributes],
-                         prompt_tokens: tp.Optional[torch.Tensor], progress: bool = False) -> torch.Tensor:
+                         prompt_tokens: tp.Optional[torch.Tensor], progress: bool = False, progress_callback: gr.Progress = None) -> torch.Tensor:
         """Generate discrete audio tokens given audio prompt and/or conditions.
 
         Args:
@@ -411,17 +414,19 @@ class MusicGen:
             if self._progress_callback is not None:
                 # Note that total_gen_len might be quite wrong depending on the
                 # codebook pattern used, but with delay it is almost accurate.
-                self._progress_callback(generated_tokens, total_gen_len)
-            else:
+                self._progress_callback((generated_tokens / total_gen_len), f"Generated {generated_tokens}/{total_gen_len} tokens")
+            if progress_callback is not None:
+                # Update Gradio progress bar
+                progress_callback((generated_tokens / total_gen_len), f"Generated {generated_tokens}/{total_gen_len} tokens")
+            if progress:
                 print(f'{generated_tokens: 6d} / {total_gen_len: 6d}', end='\r')
 
         if prompt_tokens is not None:
             assert max_prompt_len >= prompt_tokens.shape[-1], \
                 "Prompt is longer than audio to generate"
 
-        callback = None
-        if progress:
-            callback = _progress_callback
+        # callback = None
+        callback = _progress_callback
 
         if self.duration <= self.max_duration:
             # generate by sampling from LM, simple case.
@@ -481,7 +486,7 @@ class MusicGen:
 
         # generate audio
 
-    def generate_audio(self, gen_tokens: torch.Tensor):        
+    def generate_audio(self, gen_tokens: torch.Tensor):
         try:
             """Generate Audio from tokens"""
             assert gen_tokens.dim() == 3

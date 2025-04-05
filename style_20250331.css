@@ -102,6 +102,10 @@ a {
     position: relative !important;
 }
 
+.gradio-container {
+    position: relative;
+}
+
 .gradio-container::before {
     content: ' ';
     display: block;
@@ -122,12 +126,15 @@ a {
 .gradio-container::after {
     content: '';
     position: absolute;
-    top: 0;
+    top: -5%;
     left: -60%; /* Start off-screen */
-    width: 30%;
-    height: 100%;
-    background: linear-gradient( 120deg, rgba(255, 255, 255, 0) 10%, rgba(255, 255, 255, 0.60) 50%, rgba(255, 255, 255, 0) 90% );
-    animation: shine 30s infinite;
+    width: 100%;
+    height: calc(100% + 150px);
+    background: -webkit-linear-gradient(to top right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 45%, rgba(255, 255, 255, 0.5) 48%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 0.5) 52%, rgba(255, 255, 255, 0) 57%, rgba(255, 255, 255, 0) 100%);
+    animation: 15s infinite shine;
+    animation: shine 20s infinite;
+    opacity: 0.35;
+    z-index:2;
 }
 
 #component-0, #component-1 {
@@ -211,5 +218,19 @@ a {
 
     100% {
         left: 125%;
+    }
+}
+
+@keyframes shinebg {
+    0% {
+        background-position: center, -100% 0;
+    }
+
+    20% {
+        background-position: center, 100% 0;
+    }
+
+    100% {
+        background-position: center, 125% 0;
     }
 }

@@ -14,9 +14,11 @@ Useful links:
 - README: https://huggingface.co/spaces/Wauplin/gradio-user-history/blob/main/README.md
 - Source file: https://huggingface.co/spaces/Wauplin/gradio-user-history/blob/main/user_history.py
 - Discussions: https://huggingface.co/spaces/Wauplin/gradio-user-history/discussions
+
+Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 import json
 import os
@@ -39,6 +41,13 @@ from mutagen.mp3 import MP3, EasyMP3
 import torchaudio
 import subprocess
 
+user_profile = gr.State(None)
+
+def get_profile() -> gr.OAuthProfile | None:
+    global user_profile
+    """Return the user profile if logged in, None otherwise."""
+
+    return user_profile
 
 def setup(folder_path: str | Path | None = None) -> None:
     user_history = _UserHistory()
@@ -205,23 +214,30 @@ def save_file(
         image_path = _copy_image(image, dst_folder=user_history._user_images_path(username))
         image_path = _add_metadata(image_path, metadata)
 
+    video_path = None
     # Copy video to storage
     if video is not None:    
         video_path = _copy_file(video, dst_folder=user_history._user_file_path(username, "videos"))
         video_path = _add_metadata(video_path, metadata)
 
+    audio_path = None
     # Copy audio to storage
     if audio is not None:     
         audio_path = _copy_file(audio, dst_folder=user_history._user_file_path(username, "audios"))
         audio_path = _add_metadata(audio_path, metadata)
     
+    document_path = None
     # Copy document to storage
     if document is not None:     
         document_path = _copy_file(document, dst_folder=user_history._user_file_path(username, "documents"))
         document_path = _add_metadata(document_path, metadata)
 
+    
+    # If no image, video, audio or document => nothing to save
+    if image_path is None and video_path is None and audio_path is None and document_path is None:
+        return
     # Save Json file
-    data = {"image_path": str(image_path), "video_path": str(video_path), "audio_path": str(audio_path), "document_path": str(document_path), "label": label, "metadata": metadata}
+    data = {"image_path": str(image_path), "video_path": str(video_path), "audio_path": str(audio_path), "document_path": str(document_path), "label": _UserHistory._sanitize_for_json(label), "metadata": _UserHistory._sanitize_for_json(metadata)}
     with user_history._user_lock(username):
         with user_history._user_jsonl_path(username).open("a") as f:
             f.write(json.dumps(data) + "\n")
@@ -266,14 +282,34 @@ class _UserHistory(object):
         path.mkdir(parents=True, exist_ok=True)
         return path
    
+    @staticmethod
+    def _sanitize_for_json(obj: Any) -> Any:
+        """
+        Recursively convert non-serializable objects into their string representation.
+        """
+        if isinstance(obj, dict):
+            return {str(key): _UserHistory._sanitize_for_json(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [_UserHistory._sanitize_for_json(item) for item in obj]
+        elif isinstance(obj, (str, int, float, bool)) or obj is None:
+            return obj
+        elif hasattr(obj, "isoformat"):
+            # For datetime objects and similar.
+            return obj.isoformat()
+        else:
+            return str(obj)
     
 
 def _fetch_user_history(profile: gr.OAuthProfile | None) -> List[Tuple[str, str]]:
     """Return saved history for that user, if it exists."""
     # Cannot load history for logged out users
+    global user_profile
     if profile is None:
+        user_profile = gr.State(None)
         return []
-    username = profile["preferred_username"]
+    username = str(profile["preferred_username"])
+    
+    user_profile = gr.State(profile)
 
     user_history = _UserHistory()
     if not user_history.initialized:
@@ -290,7 +326,7 @@ def _fetch_user_history(profile: gr.OAuthProfile | None) -> List[Tuple[str, str]
         images = []
         for line in jsonl_path.read_text().splitlines():
             data = json.loads(line)
-            images.append((data["path"], data["label"] or ""))
+            images.append((data["image_path"], data["label"] or ""))
         return list(reversed(images))
 
 
