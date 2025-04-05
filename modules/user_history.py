@@ -478,7 +478,7 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any]) -> Path:
             # Use ffmpeg to add metadata to the video file
             metadata_args = [f"{key}={value}" for key, value in metadata.items()]
             ffmpeg_metadata = ":".join(metadata_args)
-            ffmpeg_cmd = f'ffmpeg -i "{file_location}" -i "{wav_file_location}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -metadata "{ffmpeg_metadata}" "{file_location}"'
+            ffmpeg_cmd = f'ffmpeg -y -i "{file_location}" -i "{wav_file_location}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -metadata "{ffmpeg_metadata}" "{file_location}"'
             subprocess.run(ffmpeg_cmd, shell=True, check=True)
 
             # Remove temporary WAV file
