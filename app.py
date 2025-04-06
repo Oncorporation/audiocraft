@@ -134,18 +134,22 @@ def git_tag():
         except Exception:
             return "<none>"
 
-def load_melody_filepath(melody_filepath, title, assigned_model):
+def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperature, cfg_coef):
     # get melody filename
     #$Union[str, os.PathLike]    
     symbols = ['_', '.', '-']
     if (melody_filepath is None) or (melody_filepath == ""):
-        return title, gr.update(maximum=0, value=0) , gr.update(value="medium", interactive=True)
+        return title, gr.update(maximum=0, value=0) , gr.update(value="medium", interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef)
     
     if (title is None) or ("MusicGen" in title) or (title == ""):
         melody_name, melody_extension = get_filename_from_filepath(melody_filepath)
         # fix melody name for symbols
         for symbol in symbols:
             melody_name = melody_name.replace(symbol, ' ').title()
+        #additonal melody setting updates
+        topp = 500
+        temperature = 0.5
+        cfg_coef = 3.0
     else:
         melody_name = title
 
@@ -162,7 +166,7 @@ def load_melody_filepath(melody_filepath, title, assigned_model):
     print(f"Melody length: {len(melody_data)}, Melody segments: {total_melodys}\n")
     MAX_PROMPT_INDEX = total_melodys   
 
-    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value=assigned_model, interactive=True)
+    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef)
 
 def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, progress=gr.Progress(track_tqdm=True)):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
@@ -445,8 +449,8 @@ def ui(**kwargs):
             with gr.Row():
                     with gr.Column():
                         with gr.Row():
-                            text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi")
-                            with gr.Column():                        
+                            text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi, soft fade-in, soft fade-out")
+                            with gr.Column():
                                 duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True)
                                 model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-small", "stereo-medium", "stereo-large", "stereo-melody", "stereo-melody-large"], label="AI Model", value="medium", interactive=True)
                         with gr.Row():
@@ -456,7 +460,7 @@ def ui(**kwargs):
                         with gr.Row():
                             with gr.Column():
                                 radio = gr.Radio(["file", "mic"], value="file", label="Condition on a melody (optional) File or Mic")
-                                melody_filepath = gr.Audio(sources=["upload"], type="filepath", label="Melody Condition (optional)", interactive=True, elem_id="melody-input")                        
+                                melody_filepath = gr.Audio(sources=["upload"], type="filepath", label="Melody Condition (optional)", interactive=True, elem_id="melody-input")
                             with gr.Column():
                                 harmony_only = gr.Radio(label="Use Harmony Only",choices=["No", "Yes"], value="No", interactive=True, info="Remove Drums?")
                                 prompt_index = gr.Slider(label="Melody Condition Sample Segment", minimum=-1, maximum=MAX_PROMPT_INDEX, step=1, value=0, interactive=True, info="Which 30 second segment to condition with, - 1 condition each segment independantly")                                                
@@ -486,10 +490,10 @@ def ui(**kwargs):
                     with gr.Column() as c:
                         output = gr.Video(label="Generated Music")
                         wave_file = gr.File(label=".wav file", elem_id="output_wavefile", interactive=True)
-                        seed_used = gr.Number(label='Seed used', value=-1, interactive=False)                        
+                        seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
 
             radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False)
-            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model], outputs=[title, prompt_index , model], api_name="melody_filepath_change", queue=False)
+            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model,topp, temperature, cfg_coef], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], api_name="melody_filepath_change", queue=False)
             reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed")
             
             gr.Examples(
@@ -498,34 +502,49 @@ def ui(**kwargs):
                         "4/4 120bpm 320kbps 48khz, An 80s driving pop song with heavy drums and synth pads in the background",
                         "./assets/bach.mp3",
                         "melody",
-                        "80s Pop Synth"
+                        "80s Pop Synth",
+                        950,
+                        0,6,
+                        5.0
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, A cheerful country song with acoustic guitars",
                         "./assets/bolero_ravel.mp3",
                         "stereo-melody-large",
-                        "Country Guitar"
+                        "Country Guitar",
+                        750,
+                        0,7,
+                        4.75
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, 90s rock song with electric guitar and heavy drums",
                         None,
                         "stereo-medium", 
-                        "90s Rock Guitar"
+                        "90s Rock Guitar",
+                        1150,
+                        0,7,
+                        4.5
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, a light and cheerly EDM track, with syncopated drums, aery pads, and strong emotions",
                         "./assets/bach.mp3",
                         "melody-large",
-                        "EDM my Bach"
+                        "EDM my Bach",
+                        500,
+                        0,7,
+                        3.5
                     ],
                     [
                         "4/4 320kbps 48khz, lofi slow bpm electro chill with organic samples",
                         None,
                         "medium", 
-                        "LoFi Chill"
+                        "LoFi Chill",
+                        1150,
+                        0,7,
+                        8.5
                     ],
                 ],
-                inputs=[text, melody_filepath, model, title],
+                inputs=[text, melody_filepath, model, title, topp, temperature, cfg_coef],
                 outputs=[output]
             )
             
