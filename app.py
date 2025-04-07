@@ -463,7 +463,7 @@ def ui(**kwargs):
                                 melody_filepath = gr.Audio(sources=["upload"], type="filepath", label="Melody Condition (optional)", interactive=True, elem_id="melody-input")
                             with gr.Column():
                                 harmony_only = gr.Radio(label="Use Harmony Only",choices=["No", "Yes"], value="No", interactive=True, info="Remove Drums?")
-                                prompt_index = gr.Slider(label="Melody Condition Sample Segment", minimum=-1, maximum=MAX_PROMPT_INDEX, step=1, value=0, interactive=True, info="Which 30 second segment to condition with, - 1 condition each segment independantly")                                                
+                                prompt_index = gr.Slider(label="Melody Condition Sample Segment", minimum=-1, maximum=MAX_PROMPT_INDEX, step=1, value=0, interactive=True, info="Which 30 second segment to condition with, - 1 condition each segment independantly")
                         with gr.Accordion("Video", open=False):
                             with gr.Row():
                                 background= gr.Image(value="./assets/background.png", sources=["upload"], label="Background", width=768, height=512, type="filepath", interactive=True)
@@ -504,7 +504,7 @@ def ui(**kwargs):
                         "melody",
                         "80s Pop Synth",
                         950,
-                        0,6,
+                        0.6,
                         5.0
                     ],
                     [
@@ -513,7 +513,7 @@ def ui(**kwargs):
                         "stereo-melody-large",
                         "Country Guitar",
                         750,
-                        0,7,
+                        0.7,
                         4.75
                     ],
                     [
@@ -522,7 +522,7 @@ def ui(**kwargs):
                         "stereo-medium", 
                         "90s Rock Guitar",
                         1150,
-                        0,7,
+                        0.7,
                         4.5
                     ],
                     [
@@ -531,7 +531,7 @@ def ui(**kwargs):
                         "melody-large",
                         "EDM my Bach",
                         500,
-                        0,7,
+                        0.7,
                         3.5
                     ],
                     [
@@ -540,7 +540,7 @@ def ui(**kwargs):
                         "medium", 
                         "LoFi Chill",
                         1150,
-                        0,7,
+                        0.7,
                         8.5
                     ],
                 ],
