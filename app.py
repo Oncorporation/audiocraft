@@ -482,7 +482,7 @@ def ui(**kwargs):
                                 topk = gr.Number(label="Top-k", value=280, precision=0, interactive=True)
                                 topp = gr.Number(label="Top-p", value=1150, precision=0, interactive=True)
                                 temperature = gr.Number(label="Randomness Temperature", value=0.7, precision=None, interactive=True)
-                                cfg_coef = gr.Number(label="Classifier Free Guidance", value=8.5, precision=None, interactive=True)
+                                cfg_coef = gr.Number(label="Classifier Free Guidance", value=3.0, precision=None, interactive=True)
                             with gr.Row():
                                 seed = gr.Number(label="Seed", value=-1, precision=0, interactive=True)
                                 gr.Button('\U0001f3b2\ufe0f', elem_classes="small-btn").click(fn=lambda: -1, outputs=[seed], queue=False)
@@ -505,7 +505,7 @@ def ui(**kwargs):
                         "80s Pop Synth",
                         950,
                         0.6,
-                        5.0
+                        3.1
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, A cheerful country song with acoustic guitars",
@@ -514,7 +514,7 @@ def ui(**kwargs):
                         "Country Guitar",
                         750,
                         0.7,
-                        4.75
+                        3.75
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, 90s rock song with electric guitar and heavy drums",
@@ -523,7 +523,7 @@ def ui(**kwargs):
                         "90s Rock Guitar",
                         1150,
                         0.7,
-                        4.5
+                        3.5
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, a light and cheerly EDM track, with syncopated drums, aery pads, and strong emotions",
@@ -532,7 +532,7 @@ def ui(**kwargs):
                         "EDM my Bach",
                         500,
                         0.7,
-                        3.5
+                        3.25
                     ],
                     [
                         "4/4 320kbps 48khz, lofi slow bpm electro chill with organic samples",
@@ -541,7 +541,7 @@ def ui(**kwargs):
                         "LoFi Chill",
                         1150,
                         0.7,
-                        8.5
+                        3.0
                     ],
                 ],
                 inputs=[text, melody_filepath, model, title, topp, temperature, cfg_coef],
