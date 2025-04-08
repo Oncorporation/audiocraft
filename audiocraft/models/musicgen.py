@@ -411,15 +411,17 @@ class MusicGen:
 
         def _progress_callback(generated_tokens: int, tokens_to_generate: int):
             generated_tokens += current_gen_offset
+            generated_tokens /= 50
+            tokens_to_generate /= 50
             if self._progress_callback is not None:
                 # Note that total_gen_len might be quite wrong depending on the
                 # codebook pattern used, but with delay it is almost accurate.
-                self._progress_callback((generated_tokens / total_gen_len), f"Generated {generated_tokens}/{total_gen_len} tokens")
+                self._progress_callback((generated_tokens / tokens_to_generate), f"Generated {generated_tokens}/{tokens_to_generate} seconds")
             if progress_callback is not None:
                 # Update Gradio progress bar
-                progress_callback((generated_tokens / total_gen_len), f"Generated {generated_tokens}/{total_gen_len} tokens")
+                progress_callback((generated_tokens / tokens_to_generate), f"Generated {generated_tokens}/{tokens_to_generate} seconds")
             if progress:
-                print(f'{generated_tokens: 6d} / {total_gen_len: 6d}', end='\r')
+                print(f'{generated_tokens: 6.2f} / {tokens_to_generate: 6.2f}', end='\r')
 
         if prompt_tokens is not None:
             assert max_prompt_len >= prompt_tokens.shape[-1], \
