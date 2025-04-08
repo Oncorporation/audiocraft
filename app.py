@@ -133,9 +133,9 @@ def git_tag():
         except Exception:
             return "<none>"
 
-def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperature, cfg_coef, segment_duration = 30):
+def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperature, cfg_coef, segment_length = 30):
     # get melody filename
-    #$Union[str, os.PathLike]    
+    #$Union[str, os.PathLike]
     symbols = ['_', '.', '-']
     if (melody_filepath is None) or (melody_filepath == ""):
         return title, gr.update(maximum=0, value=0) , gr.update(value="medium", interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef)
@@ -146,9 +146,9 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
         for symbol in symbols:
             melody_name = melody_name.replace(symbol, ' ').title()
         #additonal melody setting updates
-        topp = 500
+        topp = 800
         temperature = 0.5
-        cfg_coef = 3.0
+        cfg_coef = 3.25
     else:
         melody_name = title
 
@@ -160,7 +160,7 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     # get melody length in number of segments and modify the UI
     melody = get_melody(melody_filepath)
     sr, melody_data = melody[0], melody[1]
-    segment_samples = sr * segment_duration
+    segment_samples = sr * segment_length
     total_melodys = max(min((len(melody_data) // segment_samples), 25), 0) 
     print(f"Melody length: {len(melody_data)}, Melody segments: {total_melodys}\n")
     MAX_PROMPT_INDEX = total_melodys   
@@ -479,7 +479,7 @@ def ui(**kwargs):
                                 settings_font_color = gr.ColorPicker(label="Settings Font Color", value="#c87f05", interactive=True, key="settings_font_color")
                         with gr.Accordion("Expert", open=False):
                             with gr.Row():
-                                segment_duration = gr.Slider(minimum=10, maximum=30, value=30, step =1,label="Music Generation Segment Length (s)", interactive=True)
+                                segment_length = gr.Slider(minimum=10, maximum=30, value=30, step =1,label="Music Generation Segment Length (s)", interactive=True,key="segment_length")
                                 overlap = gr.Slider(minimum=0, maximum=15, value=1, step=1, label="Segment Overlap", interactive=True)
                                 dimension = gr.Slider(minimum=-2, maximum=2, value=2, step=1, label="Dimension", info="determines which direction to add new segements of audio. (1 = stack tracks, 2 = lengthen, -2..0 = ?)", interactive=True)
                             with gr.Row():
@@ -497,9 +497,10 @@ def ui(**kwargs):
                         seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
 
             radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False)
-            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_duration], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], api_name="melody_filepath_change", queue=False)
+            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], api_name="melody_filepath_change", queue=False)
             reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed_click")
             autoplay_cb.change(fn=lambda x: gr.update(autoplay=x), inputs=[autoplay_cb], outputs=[output], queue=False, api_name="autoplay_cb_change")
+            segment_length.change(fn=load_melody_filepath, queue=False, api_name="segment_length_change", trigger_mode="once", inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], show_progress="minimal")
 
             gr.Examples(
                 examples=[
@@ -568,7 +569,7 @@ def ui(**kwargs):
             api_name="submit"
          ).then(
              predict,
-             inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only, user_profile, segment_duration],
+             inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only, user_profile, segment_length],
              outputs=[output, wave_file, seed_used], scroll_to_output=True)
 
         # Show the interface
