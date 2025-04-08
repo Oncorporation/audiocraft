@@ -482,7 +482,7 @@ def ui(**kwargs):
                                 topk = gr.Number(label="Top-k", value=280, precision=0, interactive=True)
                                 topp = gr.Number(label="Top-p", value=1150, precision=0, interactive=True)
                                 temperature = gr.Number(label="Randomness Temperature", value=0.7, precision=None, interactive=True)
-                                cfg_coef = gr.Number(label="Classifier Free Guidance", value=3.0, precision=None, interactive=True)
+                                cfg_coef = gr.Number(label="Classifier Free Guidance", value=3.5, precision=None, interactive=True)
                             with gr.Row():
                                 seed = gr.Number(label="Seed", value=-1, precision=0, interactive=True)
                                 gr.Button('\U0001f3b2\ufe0f', elem_classes="small-btn").click(fn=lambda: -1, outputs=[seed], queue=False)
@@ -505,7 +505,7 @@ def ui(**kwargs):
                         "80s Pop Synth",
                         950,
                         0.6,
-                        3.1
+                        3.0
                     ],
                     [
                         "4/4 120bpm 320kbps 48khz, A cheerful country song with acoustic guitars",
@@ -532,16 +532,16 @@ def ui(**kwargs):
                         "EDM my Bach",
                         500,
                         0.7,
-                        3.25
+                        3.5
                     ],
                     [
                         "4/4 320kbps 48khz, lofi slow bpm electro chill with organic samples",
                         None,
                         "medium", 
                         "LoFi Chill",
-                        1150,
+                        0,
                         0.7,
-                        3.0
+                        4.0
                     ],
                 ],
                 inputs=[text, melody_filepath, model, title, topp, temperature, cfg_coef],
@@ -587,7 +587,7 @@ def ui(**kwargs):
             launch_kwargs['share'] = share
         launch_kwargs['favicon_path']= "./assets/favicon.ico"
 
-        interface.queue().launch(**launch_kwargs, max_threads=1)
+        demo.queue().launch(**launch_kwargs, max_threads=1)
 
 
 if __name__ == "__main__":
