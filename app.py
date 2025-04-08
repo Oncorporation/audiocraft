@@ -480,7 +480,7 @@ def ui(**kwargs):
                                 dimension = gr.Slider(minimum=-2, maximum=2, value=2, step=1, label="Dimension", info="determines which direction to add new segements of audio. (1 = stack tracks, 2 = lengthen, -2..0 = ?)", interactive=True)
                             with gr.Row():
                                 topk = gr.Number(label="Top-k", value=280, precision=0, interactive=True)
-                                topp = gr.Number(label="Top-p", value=1150, precision=0, interactive=True)
+                                topp = gr.Number(label="Top-p", value=1150, precision=0, interactive=True, info="overwrites Top-k if not zero")
                                 temperature = gr.Number(label="Randomness Temperature", value=0.7, precision=None, interactive=True)
                                 cfg_coef = gr.Number(label="Classifier Free Guidance", value=3.5, precision=None, interactive=True)
                             with gr.Row():
