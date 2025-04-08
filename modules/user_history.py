@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 import json
 import os
@@ -113,7 +113,7 @@ def render() -> None:
         height=600,
         preview=False,
         show_share_button=False,
-        show_download_button=True,        
+        show_download_button=True,
     )
     gr.Markdown(
         "User history is powered by"
@@ -242,6 +242,15 @@ def save_file(
     with user_history._user_lock(username):
         with user_history._user_jsonl_path(username).open("a") as f:
             f.write(json.dumps(data) + "\n")
+    
+def get_filepath():
+    """Return the path to the user history folder."""
+    user_history = _UserHistory()
+    if not user_history.initialized:
+        warnings.warn("User history is not set in Gradio demo. You must use `user_history.render(...)` first.")
+        return None
+    return user_history.folder_path
+
     
 
 #############
@@ -380,7 +389,7 @@ def _copy_image(image: Image | np.ndarray | str | Path, dst_folder: Path) -> Pat
         if isinstance(image, str):
             image = Path(image)
         if isinstance(image, Path):
-            dst = dst_folder / f"{uuid4().hex}_{Path(image).name}"  # keep file ext
+            dst = dst_folder / f"{uuid4().hex[:4]}_{Path(image).name}_h.png"  # keep file ext
             shutil.copyfile(image, dst)
             return dst
 
@@ -388,7 +397,7 @@ def _copy_image(image: Image | np.ndarray | str | Path, dst_folder: Path) -> Pat
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
         if isinstance(image, Image):
-            dst = dst_folder / f"{Path(file).name}_{uuid4().hex}.png"
+            dst = dst_folder / f"{Path(image).name}_h.png"
             image.save(dst)
             return dst
 
@@ -407,21 +416,21 @@ def _copy_file(file: Any | np.ndarray | str | Path, dst_folder: Path) -> Path:
         if isinstance(file, str):
             file = Path(file)
         if isinstance(file, Path):
-            dst = dst_folder / f"{file.stem}_{uuid4().hex}{file.suffix}"  # keep file ext
+            dst = dst_folder / f"{file.stem}_{uuid4().hex[:4]}{file.suffix}"  # keep file ext
             shutil.copyfile(file, dst)
             return dst
 
         # Still a Python object => serialize it
         if isinstance(file, np.ndarray):
             file = Image.fromarray(file)
-            dst = dst_folder / f"{file.filename}_{uuid4().hex}{file.suffix}"
+            dst = dst_folder / f"{file.filename}_{uuid4().hex[:4]}{file.suffix}"
             file.save(dst)
             return dst
 
         # try other file types
         kind = filetype.guess(file)
         if kind is not None:
-            dst = dst_folder / f"{Path(file).stem}_{uuid4().hex}.{kind.extension}"
+            dst = dst_folder / f"{Path(file).stem}_{uuid4().hex[:4]}.{kind.extension}"
             shutil.copyfile(file, dst)
             return dst
         raise ValueError(f"Unsupported file type: {type(file)}")
