@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 import json
 import os
@@ -40,6 +40,7 @@ import wave
 from mutagen.mp3 import MP3, EasyMP3
 import torchaudio
 import subprocess
+from modules.file_utils import get_file_parts, rename_file_to_lowercase_extension
 
 user_profile = gr.State(None)
 
@@ -216,19 +217,19 @@ def save_file(
 
     video_path = None
     # Copy video to storage
-    if video is not None:    
+    if video is not None:
         video_path = _copy_file(video, dst_folder=user_history._user_file_path(username, "videos"))
         video_path = _add_metadata(video_path, metadata)
 
     audio_path = None
     # Copy audio to storage
-    if audio is not None:     
+    if audio is not None:
         audio_path = _copy_file(audio, dst_folder=user_history._user_file_path(username, "audios"))
         audio_path = _add_metadata(audio_path, metadata)
     
     document_path = None
     # Copy document to storage
-    if document is not None:     
+    if document is not None:
         document_path = _copy_file(document, dst_folder=user_history._user_file_path(username, "documents"))
         document_path = _add_metadata(document_path, metadata)
 
@@ -241,7 +242,7 @@ def save_file(
     with user_history._user_lock(username):
         with user_history._user_jsonl_path(username).open("a") as f:
             f.write(json.dumps(data) + "\n")
-
+    
 
 #############
 # Internals #
@@ -439,6 +440,9 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any]) -> Path:
         if file_type not in valid_file_types:
             raise ValueError("Invalid file type. Valid file types are .wav, .mp3, .mp4, .png")
 
+        directory, filename, name, ext, new_ext = get_file_parts(file_location)
+        new_file_location = rename_file_to_lowercase_extension(directory + name +"_h"+ new_ext)
+
         if file_type == ".wav":
             # Open and process .wav file
             with wave.open(file_location, 'rb') as wav_file:
@@ -448,13 +452,11 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any]) -> Path:
                 # Update metadata
                 current_metadata.update(metadata)
 
-                # Reopen the WAV file in write mode
-                with wave.open(file_location, 'wb') as wav_output_file:
-                    # Set the new metadata
+            # Copy the WAV file
+                with wave.open(new_file_location, 'wb') as wav_output_file:
                     wav_output_file.setparams(wav_file.getparams())
-
-            # Save the WAV file (overwriting the previous version)
-            wav_output_file.close()
+                    wav_output_file.writeframes(wav_file.readframes(wav_file.getnframes()))
+            return new_file_location
         elif file_type == ".mp3":
             # Open and process .mp3 file
             audio = EasyMP3(file_location)
@@ -463,8 +465,9 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any]) -> Path:
             for key, value in metadata.items():
                 audio[key] = value
 
-            # Save the MP3 file (overwriting the previous version)
-            audio.save()
+            # Save the MP3 file to the new file location
+            audio.save(new_file_location)
+            return new_file_location
         elif file_type == ".mp4":
             # Open and process .mp4 file
             # Add metadata to the file
@@ -478,19 +481,21 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any]) -> Path:
             # Use ffmpeg to add metadata to the video file
             metadata_args = [f"{key}={value}" for key, value in metadata.items()]
             ffmpeg_metadata = ":".join(metadata_args)
-            ffmpeg_cmd = f'ffmpeg -y -i "{file_location}" -i "{wav_file_location}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -metadata "{ffmpeg_metadata}" "{file_location}"'
+            ffmpeg_cmd = f'ffmpeg -y -i "{file_location}" -i "{wav_file_location}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -metadata "{ffmpeg_metadata}" "{new_file_location}"'
             subprocess.run(ffmpeg_cmd, shell=True, check=True)
 
             # Remove temporary WAV file
             if not wave_exists:
                 wav_file_location.unlink()
+            return new_file_location
         elif file_type == ".png":
             # Open and process .png file
             image = Image.open(file_location)
             exif_data = image.info.get("exif", {})
             exif_data.update(metadata)
             # Add metadata to the file
-            image.save(file_location, exif=exif_data)
+            image.save(new_file_location, exif=exif_data)
+            return new_file_location
 
         return file_location  # Return the path to the modified file
 
