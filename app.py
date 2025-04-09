@@ -168,7 +168,7 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     
     return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
 
-def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, progress=gr.Progress(track_tqdm=True)):
+def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, settings_font_size=28, progress=gr.Progress(track_tqdm=True)):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
     output_segments = None
     melody_name = "Not Used"
@@ -327,7 +327,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
     with NamedTemporaryFile("wb", suffix=".wav", delete=False, prefix=title_file_name) as file:
         video_description = f"{text}\n Duration: {str(initial_duration)} Dimension: {dimension}\n Top-k:{topk} Top-p:{topp}\n Randomness:{temperature}\n cfg:{cfg_coef} overlap: {overlap}\n Seed: {seed}\n Model: {model}\n Melody Condition:{melody_name}\n Sample Segment: {prompt_index}"
         if include_settings or include_title:
-            background = add_settings_to_image(title if include_title else "",video_description if include_settings else "",background_path=background,font=settings_font,font_color=settings_font_color)
+            background = add_settings_to_image(title if include_title else "",video_description if include_settings else "",background_path=background,font=settings_font,font_color=settings_font_color, font_size=settings_font_size)
         audio_write(
             file.name, output, MODEL.sample_rate, strategy="loudness",
             loudness_headroom_db=18, loudness_compressor=True, add_suffix=False, channels=2)
@@ -363,6 +363,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             "Audio": file.name,
             "font": settings_font,
             "font_color": settings_font_color,
+            "font_size": settings_font_size,
             "harmony_only": harmony_only,
             "background": background,
             "include_title": include_title,
@@ -461,7 +462,7 @@ def ui(**kwargs):
                                 melody_filepath = gr.Audio(sources=["upload"], type="filepath", label="Melody Condition (optional)", interactive=True, elem_id="melody-input", key="melody_input")
                             with gr.Column():
                                 harmony_only = gr.Radio(label="Use Harmony Only",choices=["No", "Yes"], value="No", interactive=True, info="Remove Drums?", key="use_harmony")
-                                prompt_index = gr.Slider(label="Melody Condition Sample Segment", minimum=-1, maximum=MAX_PROMPT_INDEX, step=1, value=0, interactive=True, info="Which 15-30 second segment to condition with, - 1  = align with conditioning melody", key="melody_index")
+                                prompt_index = gr.Slider(label="Melody Condition Sample Segment", minimum=-1, maximum=MAX_PROMPT_INDEX, step=1, value=-1, interactive=True, info="Which 10-30 second segment to condition with, - 1  = align with conditioning melody", key="melody_index")
                         with gr.Accordion("Video", open=False):
                             with gr.Row():
                                 background= gr.Image(value="./assets/background.png", sources=["upload"], label="Background", width=768, height=512, type="filepath", interactive=True, key="background_imagepath")
@@ -472,6 +473,7 @@ def ui(**kwargs):
                                 title = gr.Textbox(label="Title", value="UnlimitedMusicGen", interactive=True, key="song_title")
                                 settings_font = gr.Text(label="Settings Font", value="./assets/arial.ttf", interactive=True)
                                 settings_font_color = gr.ColorPicker(label="Settings Font Color", value="#c87f05", interactive=True, key="settings_font_color")
+                                settings_font_size = gr.Slider(minimum=8, maximum=64, value=28, step=1, label="Settings Font Size", interactive=True, key="settings_font_size")
                         with gr.Accordion("Expert", open=False):
                             with gr.Row():
                                 segment_length = gr.Slider(minimum=10, maximum=30, value=30, step=1,label="Music Generation Segment Length (s)", interactive=True,key="segment_length")
@@ -564,7 +566,7 @@ def ui(**kwargs):
             api_name="submit"
          ).then(
              predict,
-             inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only, user_profile, segment_length],
+             inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only, user_profile, segment_length, settings_font_size],
              outputs=[output, wave_file, seed_used], scroll_to_output=True)
 
         # Show the interface
