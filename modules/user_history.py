@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 import json
 import os
@@ -458,7 +458,7 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: s
 
         if file_type == ".wav":
             # Open and process .wav file
-            with wave.open(file_location, 'rb') as wav_file:
+            with wave.open(str(file_location), 'rb') as wav_file:
                 # Get the current metadata
                 current_metadata = {key: value for key, value in wav_file.getparams()._asdict().items() if isinstance(value, (int, float))}
                 
@@ -484,12 +484,8 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: s
         elif file_type == ".mp4":
             # Open and process .mp4 file
             # Add metadata to the file
-            if support_path is not None:
-                wave_file_location = support_path
-                wave_exists = wav_file_location.exists()
-            if not wave_exists:
-                wav_file_location = file_location.with_suffix(".wav")
-                wave_exists = wav_file_location.exists()
+            wave_file_location = Path(support_path) if support_path is not None else file_location.with_suffix(".wav")
+            wave_exists = wav_file_location.exists()
             if not wave_exists:
                 # Use torchaudio to create the WAV file if it doesn't exist
                 audio, sample_rate = torchaudio.load(str(file_location), normalize=True)
