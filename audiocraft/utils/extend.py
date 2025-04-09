@@ -13,6 +13,7 @@ from io import BytesIO
 from huggingface_hub import hf_hub_download
 import librosa
 import gradio as gr
+import re
 
 
 INTERRUPTING = False
@@ -224,10 +225,76 @@ def save_image(image):
     finally:
         return file_path
 
+def detect_color_format(color):
+    """
+    Detects if the color is in RGB, RGBA, or hex format,
+    and converts it to an RGBA tuple with integer components.
+
+    Args:
+        color (str or tuple): The color to detect.
+
+    Returns:
+        tuple: The color in RGBA format as a tuple of 4 integers.
+
+    Raises:
+        ValueError: If the input color is not in a recognized format.
+    """
+    # Handle color as a tuple of floats or integers
+    if isinstance(color, tuple):
+        if len(color) == 3 or len(color) == 4:
+            # Ensure all components are numbers
+            if all(isinstance(c, (int, float)) for c in color):
+                r, g, b = color[:3]
+                a = color[3] if len(color) == 4 else 255
+                return (
+                    max(0, min(255, int(round(r)))),
+                    max(0, min(255, int(round(g)))),
+                    max(0, min(255, int(round(b)))),
+                    max(0, min(255, int(round(a * 255)) if a <= 1 else round(a))),
+                )
+        else:
+            raise ValueError(f"Invalid color tuple length: {len(color)}")
+    # Handle hex color codes
+    if isinstance(color, str):
+        color = color.strip()
+        # Try to use PIL's ImageColor
+        try:
+            rgba = ImageColor.getcolor(color, "RGBA")
+            return rgba
+        except ValueError:
+            pass
+        # Handle 'rgba(r, g, b, a)' string format
+        rgba_match = re.match(r'rgba\(\s*([0-9.]+),\s*([0-9.]+),\s*([0-9.]+),\s*([0-9.]+)\s*\)', color)
+        if rgba_match:
+            r, g, b, a = map(float, rgba_match.groups())
+            return (
+                max(0, min(255, int(round(r)))),
+                max(0, min(255, int(round(g)))),
+                max(0, min(255, int(round(b)))),
+                max(0, min(255, int(round(a * 255)) if a <= 1 else round(a))),
+            )
+        # Handle 'rgb(r, g, b)' string format
+        rgb_match = re.match(r'rgb\(\s*([0-9.]+),\s*([0-9.]+),\s*([0-9.]+)\s*\)', color)
+        if rgb_match:
+            r, g, b = map(float, rgb_match.groups())
+            return (
+                max(0, min(255, int(round(r)))),
+                max(0, min(255, int(round(g)))),
+                max(0, min(255, int(round(b)))),
+                255,
+            )
+
+    # If none of the above conversions work, raise an error
+    raise ValueError(f"Invalid color format: {color}")
+
 def hex_to_rgba(hex_color):
     try:
-        # Convert hex color to RGBA tuple
-        rgba = ImageColor.getcolor(hex_color, "RGBA")
+        if hex_color.startswith("#"):
+            clean_hex = hex_color.replace('#','')
+            # Use a generator expression to convert pairs of hexadecimal digits to integers and create a tuple
+            rgba = tuple(int(clean_hex[i:i+2], 16) for i in range(0, len(clean_hex),2))
+        else:
+            rgba = tuple(map(int,detect_color_format(hex_color)))
     except ValueError:
         # If the hex color is invalid, default to yellow
         rgba = (255,255,0,255)
