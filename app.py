@@ -137,8 +137,9 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     # get melody filename
     #$Union[str, os.PathLike]
     symbols = ['_', '.', '-']
+    MAX_OVERLAP = int(segment_length  // 2) - 1
     if (melody_filepath is None) or (melody_filepath == ""):
-        return title, gr.update(maximum=0, value=0) , gr.update(value="medium", interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef)
+        return title, gr.update(maximum=0, value=0) , gr.update(value="medium", interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
     
     if (title is None) or ("MusicGen" in title) or (title == ""):
         melody_name, melody_extension = get_filename_from_filepath(melody_filepath)
@@ -163,9 +164,9 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     segment_samples = sr * segment_length
     total_melodys = max(min((len(melody_data) // segment_samples), 25), 0) 
     print(f"Melody length: {len(melody_data)}, Melody segments: {total_melodys}\n")
-    MAX_PROMPT_INDEX = total_melodys   
-
-    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef)
+    MAX_PROMPT_INDEX = total_melodys
+    
+    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
 
 def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, progress=gr.Progress(track_tqdm=True)):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
@@ -474,7 +475,7 @@ def ui(**kwargs):
                         with gr.Accordion("Expert", open=False):
                             with gr.Row():
                                 segment_length = gr.Slider(minimum=10, maximum=30, value=30, step=1,label="Music Generation Segment Length (s)", interactive=True,key="segment_length")
-                                overlap = gr.Slider(minimum=0, maximum=15, value=1, step=1, label="Segment Overlap", interactive=True)
+                                overlap = gr.Slider(minimum=0, maximum=14, value=1, step=1, label="Segment Overlap", interactive=True)
                                 dimension = gr.Slider(minimum=-2, maximum=2, value=2, step=1, label="Dimension", info="determines which direction to add new segements of audio. (1 = stack tracks, 2 = lengthen, -2..0 = ?)", interactive=True)
                             with gr.Row():
                                 topk = gr.Number(label="Top-k", value=280, precision=0, interactive=True, info="more structured", key="topk")
@@ -491,10 +492,10 @@ def ui(**kwargs):
                         seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
 
             radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False)
-            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], api_name="melody_filepath_change", queue=False)
+            melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef, overlap], api_name="melody_filepath_change", queue=False)
             reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed_click")
             autoplay_cb.change(fn=lambda x: gr.update(autoplay=x), inputs=[autoplay_cb], outputs=[output], queue=False, api_name="autoplay_cb_change")
-            segment_length.release(fn=load_melody_filepath, queue=False, api_name="segment_length_change", trigger_mode="once", inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], show_progress="minimal")
+            segment_length.release(fn=load_melody_filepath, queue=False, api_name="segment_length_change", trigger_mode="once", inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef, overlap], show_progress="minimal")
 
             gr.Examples(
                 examples=[
