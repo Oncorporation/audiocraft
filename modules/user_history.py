@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.2.3"
+__version__ = "0.3.0"
 
 import json
 import os
@@ -34,7 +34,7 @@ import gradio as gr
 import numpy as np
 import requests
 from filelock import FileLock
-from PIL.Image import Image
+from PIL import Image, PngImagePlugin
 import filetype
 import wave
 from mutagen.mp3 import MP3, EasyMP3
@@ -112,7 +112,7 @@ def render() -> None:
         columns=5,
         height=600,
         preview=False,
-        show_share_button=False,
+        show_share_button=True,
         show_download_button=True,
     )
     gr.Markdown(
@@ -149,7 +149,7 @@ def render() -> None:
 
 def save_image(
     profile: gr.OAuthProfile | None,
-    image: Image | np.ndarray | str | Path,
+    image: Image.Image | np.ndarray | str | Path,
     label: str | None = None,
     metadata: Dict | None = None,
 ):
@@ -182,7 +182,7 @@ def save_image(
             
 def save_file(
     profile: gr.OAuthProfile | None,
-    image: Image | np.ndarray | str | Path | None = None,
+    image: Image.Image | np.ndarray | str | Path | None = None,
     video: str | Path | None = None,
     audio: str | Path | None = None,
     document: str | Path | None = None,
@@ -202,35 +202,38 @@ def save_file(
             " first."
         )
         return
-    
+
+    uniqueId = uuid4().hex[:4]
+
     # Save new files + metadata
     if metadata is None:
         metadata = {}
     if "datetime" not in metadata:
         metadata["datetime"] = str(datetime.now())
-        
-    # Copy image to storage
-    image_path = None
-    if image is not None:
-        image_path = _copy_image(image, dst_folder=user_history._user_images_path(username))
-        image_path = _add_metadata(image_path, metadata)
-
-    video_path = None
-    # Copy video to storage
-    if video is not None:
-        video_path = _copy_file(video, dst_folder=user_history._user_file_path(username, "videos"))
-        video_path = _add_metadata(video_path, metadata)
 
     audio_path = None
     # Copy audio to storage
     if audio is not None:
-        audio_path = _copy_file(audio, dst_folder=user_history._user_file_path(username, "audios"))
+        audio_path = _copy_file(audio, dst_folder=user_history._user_file_path(username, "audios"), uniqueId=uniqueId)
         audio_path = _add_metadata(audio_path, metadata)
-    
+
+
+    video_path = None
+    # Copy video to storage - need audio_path if available
+    if video is not None:
+        video_path = _copy_file(video, dst_folder=user_history._user_file_path(username, "videos"), uniqueId=uniqueId)
+        video_path = _add_metadata(video_path, metadata, str(audio_path))
+
+    # Copy image to storage - need video_path if available
+    image_path = None
+    if image is not None:
+        image_path = _copy_image(image, dst_folder=user_history._user_images_path(username), uniqueId=uniqueId)
+        image_path = _add_metadata(image_path, metadata)
+
     document_path = None
     # Copy document to storage
     if document is not None:
-        document_path = _copy_file(document, dst_folder=user_history._user_file_path(username, "documents"))
+        document_path = _copy_file(document, dst_folder=user_history._user_file_path(username, "documents"), uniqueId=uniqueId)
         document_path = _add_metadata(document_path, metadata)
 
     
@@ -262,6 +265,7 @@ class _UserHistory(object):
     _instance = None
     initialized: bool = False
     folder_path: Path
+    display_type: str = "video_path"
 
     def __new__(cls):
         # Using singleton pattern => we don't want to expose an object (more complex to use) but still want to keep
@@ -287,7 +291,7 @@ class _UserHistory(object):
         path.mkdir(parents=True, exist_ok=True)
         return path
     
-    def _user_file_path(self, username: str, filetype: str = "images") -> Path:        
+    def _user_file_path(self, username: str, filetype: str = "images") -> Path:
         path = self._user_path(username) / filetype
         path.mkdir(parents=True, exist_ok=True)
         return path
@@ -336,7 +340,7 @@ def _fetch_user_history(profile: gr.OAuthProfile | None) -> List[Tuple[str, str]
         images = []
         for line in jsonl_path.read_text().splitlines():
             data = json.loads(line)
-            images.append((data["image_path"], data["label"] or ""))
+            images.append((data[user_history.display_type], data["label"] or ""))
         return list(reversed(images))
 
 
@@ -382,22 +386,22 @@ def _delete_user_history(profile: gr.OAuthProfile | None) -> None:
 ####################
 
 
-def _copy_image(image: Image | np.ndarray | str | Path, dst_folder: Path) -> Path:
+def _copy_image(image: Image.Image | np.ndarray | str | Path, dst_folder: Path, uniqueId: str = "") -> Path:
     try:
         """Copy image to the images folder."""
         # Already a path => copy it
         if isinstance(image, str):
             image = Path(image)
         if isinstance(image, Path):
-            dst = dst_folder / f"{uuid4().hex[:4]}_{Path(image).name}_h.png"  # keep file ext
+            dst = dst_folder / f"{uniqueId}_{Path(image).name}.png"  # keep file ext
             shutil.copyfile(image, dst)
             return dst
 
         # Still a Python object => serialize it
         if isinstance(image, np.ndarray):
-            image = Image.fromarray(image)
+            image = Image.Image.fromarray(image)
         if isinstance(image, Image):
-            dst = dst_folder / f"{Path(image).name}_h.png"
+            dst = dst_folder / f"{Path(image).name}.png"
             image.save(dst)
             return dst
 
@@ -409,28 +413,28 @@ def _copy_image(image: Image | np.ndarray | str | Path, dst_folder: Path) -> Pat
             dst = Path(image)
         return dst  # Return the original file_location if an error occurs
 
-def _copy_file(file: Any | np.ndarray | str | Path, dst_folder: Path) -> Path:
+def _copy_file(file: Any | np.ndarray | str | Path, dst_folder: Path, uniqueId: str = "") -> Path:
     try:
         """Copy file to the appropriate folder."""
         # Already a path => copy it
         if isinstance(file, str):
             file = Path(file)
         if isinstance(file, Path):
-            dst = dst_folder / f"{file.stem}_{uuid4().hex[:4]}{file.suffix}"  # keep file ext
+            dst = dst_folder / f"{file.stem}_{uniqueId}{file.suffix}"  # keep file ext
             shutil.copyfile(file, dst)
             return dst
 
         # Still a Python object => serialize it
         if isinstance(file, np.ndarray):
             file = Image.fromarray(file)
-            dst = dst_folder / f"{file.filename}_{uuid4().hex[:4]}{file.suffix}"
+            dst = dst_folder / f"{file.filename}_{uniqueId}{file.suffix}"
             file.save(dst)
             return dst
 
         # try other file types
         kind = filetype.guess(file)
         if kind is not None:
-            dst = dst_folder / f"{Path(file).stem}_{uuid4().hex[:4]}.{kind.extension}"
+            dst = dst_folder / f"{Path(file).stem}_{uniqueId}.{kind.extension}"
             shutil.copyfile(file, dst)
             return dst
         raise ValueError(f"Unsupported file type: {type(file)}")
@@ -442,7 +446,7 @@ def _copy_file(file: Any | np.ndarray | str | Path, dst_folder: Path) -> Path:
         return dst  # Return the original file_location if an error occurs
 
 
-def _add_metadata(file_location: Path, metadata: Dict[str, Any]) -> Path:
+def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: str = None) -> Path:
     try:
         file_type = file_location.suffix
         valid_file_types = [".wav", ".mp3", ".mp4", ".png"]
@@ -480,17 +484,21 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any]) -> Path:
         elif file_type == ".mp4":
             # Open and process .mp4 file
             # Add metadata to the file
-            wav_file_location = file_location.with_suffix(".wav")
-            wave_exists = wav_file_location.exists()
+            if support_path is not None:
+                wave_file_location = support_path
+                wave_exists = wav_file_location.exists()
+            if not wave_exists:
+                wav_file_location = file_location.with_suffix(".wav")
+                wave_exists = wav_file_location.exists()
             if not wave_exists:
                 # Use torchaudio to create the WAV file if it doesn't exist
-                audio, sample_rate = torchaudio.load(file_location, normalize=True)
+                audio, sample_rate = torchaudio.load(str(file_location), normalize=True)
                 torchaudio.save(wav_file_location, audio, sample_rate, format='wav')
 
             # Use ffmpeg to add metadata to the video file
             metadata_args = [f"{key}={value}" for key, value in metadata.items()]
             ffmpeg_metadata = ":".join(metadata_args)
-            ffmpeg_cmd = f'ffmpeg -y -i "{file_location}" -i "{wav_file_location}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -metadata "{ffmpeg_metadata}" "{new_file_location}"'
+            ffmpeg_cmd = f'ffmpeg -y -i "{str(file_location)}" -i "{str(wav_file_location)}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -metadata "{ffmpeg_metadata}" "{new_file_location}"'
             subprocess.run(ffmpeg_cmd, shell=True, check=True)
 
             # Remove temporary WAV file
@@ -498,12 +506,14 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any]) -> Path:
                 wav_file_location.unlink()
             return new_file_location
         elif file_type == ".png":
-            # Open and process .png file
-            image = Image.open(file_location)
-            exif_data = image.info.get("exif", {})
-            exif_data.update(metadata)
-            # Add metadata to the file
-            image.save(new_file_location, exif=exif_data)
+            image = Image.open(str(file_location))
+            # Create a PngInfo object for custom metadata
+            pnginfo = PngImagePlugin.PngInfo()
+            
+            for key, value in metadata.items():
+                pnginfo.add_text(str(key), str(value))
+            
+            image.save(str(new_file_location), pnginfo=pnginfo)
             return new_file_location
 
         return file_location  # Return the path to the modified file
@@ -559,7 +569,9 @@ Running on **{os.getenv("SYSTEM", "local")}** (id: {os.getenv("SPACE_ID")}). {_g
 
 Admins: {', '.join(_fetch_admins())}
 
-{_get_nb_users()} user(s), {_get_nb_images()} image(s)
+{_get_nb_users()} user(s), {_get_nb_images()} image(s), {_get_nb_video()} video(s) in history.
+
+Display Type: *{_UserHistory().display_type}*
 
 ### Configuration
 
@@ -588,6 +600,14 @@ def _get_nb_images() -> int:
         return 0
     if user_history.folder_path is not None and user_history.folder_path.exists():
         return len([path for path in user_history.folder_path.glob("*/images/*")])
+    return 0
+
+def _get_nb_video() -> int:
+    user_history = _UserHistory()
+    if not user_history.initialized:
+        return 0
+    if user_history.folder_path is not None and user_history.folder_path.exists():
+        return len([path for path in user_history.folder_path.glob("*/videos/*")])
     return 0
 
 
