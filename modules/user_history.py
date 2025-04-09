@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 import json
 import os
@@ -393,7 +393,7 @@ def _copy_image(image: Image.Image | np.ndarray | str | Path, dst_folder: Path, 
         if isinstance(image, str):
             image = Path(image)
         if isinstance(image, Path):
-            dst = dst_folder / f"{uniqueId}_{Path(image).name}.png"  # keep file ext
+            dst = dst_folder / Path(f"{uniqueId}_{Path(image).name}")  # keep file ext
             shutil.copyfile(image, dst)
             return dst
 
@@ -401,7 +401,7 @@ def _copy_image(image: Image.Image | np.ndarray | str | Path, dst_folder: Path, 
         if isinstance(image, np.ndarray):
             image = Image.Image.fromarray(image)
         if isinstance(image, Image):
-            dst = dst_folder / f"{Path(image).name}.png"
+            dst = dst_folder / Path(f"{Path(image).name}")
             image.save(dst)
             return dst
 
@@ -420,21 +420,21 @@ def _copy_file(file: Any | np.ndarray | str | Path, dst_folder: Path, uniqueId: 
         if isinstance(file, str):
             file = Path(file)
         if isinstance(file, Path):
-            dst = dst_folder / f"{file.stem}_{uniqueId}{file.suffix}"  # keep file ext
+            dst = dst_folder / Path(f"{file.stem}_{uniqueId}{file.suffix}")  # keep file ext
             shutil.copyfile(file, dst)
             return dst
 
         # Still a Python object => serialize it
         if isinstance(file, np.ndarray):
             file = Image.fromarray(file)
-            dst = dst_folder / f"{file.filename}_{uniqueId}{file.suffix}"
+            dst = dst_folder / Path(f"{file.stem}_{uniqueId}{file.suffix}")
             file.save(dst)
             return dst
 
         # try other file types
         kind = filetype.guess(file)
         if kind is not None:
-            dst = dst_folder / f"{Path(file).stem}_{uniqueId}.{kind.extension}"
+            dst = dst_folder / Path(f"{Path(file).stem}_{uniqueId}.{kind.extension}")
             shutil.copyfile(file, dst)
             return dst
         raise ValueError(f"Unsupported file type: {type(file)}")
@@ -454,7 +454,7 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: s
             raise ValueError("Invalid file type. Valid file types are .wav, .mp3, .mp4, .png")
 
         directory, filename, name, ext, new_ext = get_file_parts(file_location)
-        new_file_location = rename_file_to_lowercase_extension(directory + name +"_h"+ new_ext)
+        new_file_location = rename_file_to_lowercase_extension(os.path.join(directory, name +"_h"+ new_ext))
 
         if file_type == ".wav":
             # Open and process .wav file
@@ -484,7 +484,7 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: s
         elif file_type == ".mp4":
             # Open and process .mp4 file
             # Add metadata to the file
-            wave_file_location = Path(support_path) if support_path is not None else file_location.with_suffix(".wav")
+            wav_file_location = Path(support_path) if support_path is not None else file_location.with_suffix(".wav")
             wave_exists = wav_file_location.exists()
             if not wave_exists:
                 # Use torchaudio to create the WAV file if it doesn't exist
