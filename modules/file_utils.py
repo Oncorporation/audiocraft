@@ -89,3 +89,29 @@ def delete_file(file_path: str) -> None:
         print(f"File not found: {file_path}")
     except Exception as e:
         print(f"Error deleting file: {e}")
+
+def get_unique_file_path(directory, filename, file_ext, counter=0):
+    """
+    Recursively increments the filename until a unique path is found.
+    
+    Parameters:
+        directory (str): The directory for the file.
+        filename (str): The base filename.
+        file_ext (str): The file extension including the leading dot.
+        counter (int): The current counter value to append.
+        
+    Returns:
+        str: A unique file path that does not exist.
+    """
+    if counter == 0:
+        filepath = os.path.join(directory, f"{filename}{file_ext}")
+    else:
+        filepath = os.path.join(directory, f"{filename}{counter}{file_ext}")
+
+    if not os.path.exists(filepath):
+        return filepath
+    else:
+        return get_unique_file_path(directory, filename, file_ext, counter + 1)
+
+# Example usage:
+# new_file_path = get_unique_file_path(video_dir, title_file_name, video_new_ext)
