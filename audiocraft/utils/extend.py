@@ -370,6 +370,7 @@ def add_settings_to_image(title: str = "title", description: str = "", width: in
 
     #Convert font color to RGBA tuple
     font_color = hex_to_rgba(font_color)
+    print(f"Font Color: {font_color}\n")
 
     # Calculate the center coordinates for placing the text
     text_x = width // 2
