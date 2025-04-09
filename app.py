@@ -32,7 +32,7 @@ import librosa
 import modules.user_history
 from modules.version_info import versions_html, commit_hash, get_xformers_version
 from modules.gradio import *
-from modules.file_utils import get_file_parts, get_filename_from_filepath, convert_title_to_filename, get_filename, delete_file
+from modules.file_utils import get_file_parts, get_filename_from_filepath, convert_title_to_filename, get_unique_file_path, delete_file
 
 MODEL = None
 MODELS = None
@@ -243,7 +243,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         try:
             if melody and ("melody" in model):
                 # return excess duration, load next model and continue in loop structure building up output_segments
-                if duration > MODEL.lm.cfg.dataset.segment_duration:
+                if duration > segment_duration:
                     output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.lm.cfg.dataset.segment_duration, prompt_index, harmony_only, progress=gr.Progress(track_tqdm=True))
                 else:
                     # pure original code
@@ -323,66 +323,66 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             output = output.detach().cpu().float()[0]
 
     title_file_name = convert_title_to_filename(title)
-    with NamedTemporaryFile("wb", suffix=".wav", delete=False, prefix = title_file_name) as file:
+    with NamedTemporaryFile("wb", suffix=".wav", delete=False, prefix=title_file_name) as file:
         video_description = f"{text}\n Duration: {str(initial_duration)} Dimension: {dimension}\n Top-k:{topk} Top-p:{topp}\n Randomness:{temperature}\n cfg:{cfg_coef} overlap: {overlap}\n Seed: {seed}\n Model: {model}\n Melody Condition:{melody_name}\n Sample Segment: {prompt_index}"
         if include_settings or include_title:
-            background = add_settings_to_image(title if include_title else "", video_description if include_settings else "", background_path=background, font=settings_font, font_color=settings_font_color)
+            background = add_settings_to_image(title if include_title else "",video_description if include_settings else "",background_path=background,font=settings_font,font_color=settings_font_color)
         audio_write(
             file.name, output, MODEL.sample_rate, strategy="loudness",
             loudness_headroom_db=18, loudness_compressor=True, add_suffix=False, channels=2)
-        waveform_video_path = get_waveform(file.name,bg_image=background, bar_count=45, name = title_file_name)
+        waveform_video_path = get_waveform(file.name, bg_image=background, bar_count=45, name=title_file_name)
         # Remove the extension from file.name
         file_name_without_extension = os.path.splitext(file.name)[0]
         # Get the directory, filename, name, extension, and new extension of the waveform video path
         video_dir, video_name, video_name, video_ext, video_new_ext = get_file_parts(waveform_video_path)
 
-        new_video_path = os.path.join(video_dir, title_file_name + video_new_ext)
- 
+        new_video_path = get_unique_file_path(video_dir, title_file_name, video_new_ext)
+
         mp4 = MP4(waveform_video_path)
         mp4["©nam"] = title_file_name        # Title tag
         mp4["desc"] = f"{text}\n Duration: {str(initial_duration)}" # Description tag
 
         commit = commit_hash()
-        metadata={
-                "prompt": text,
-                "negative_prompt": "",
-                "Seed": seed,
-                "steps": 1,
-                "width": "768px",
-                "height":"512px",
-                "Dimension": dimension,
-                "Top-k": topk,
-                "Top-p":topp,
-                "Randomness": temperature,
-                "cfg":cfg_coef, 
-                "overlap": overlap, 
-                "Melody Condition": melody_name, 
-                "Sample Segment": prompt_index,
-                "Duration": initial_duration,
-                "Audio": file.name,
-                "font": settings_font,
-                "font_color": settings_font_color,
-                "harmony_only": harmony_only,
-                "background": background,
-                "include_title": include_title,
-                "include_settings": include_settings,
-                "profile": "Satoshi Nakamoto" if profile.value is None else profile.value.username,
-                "commit": commit_hash(),
-                "tag": git_tag(),
-                "version": gr.__version__,
-                "model_version": MODEL.version,
-                "model_name": MODEL.name,
-                "model_description": f"{MODEL.audio_channels} channels, {MODEL.sample_rate} Hz",
-                "melody_name" : melody_name if melody_name else "",
-                "melody_extension" : melody_extension if melody_extension else "",
-                "hostname": "https://huggingface.co/spaces/Surn/UnlimitedMusicGen",
-                "version" : f"""https://huggingface.co/spaces/Surn/UnlimitedMusicGen/commit/{"huggingface" if commit == "<none>" else commit}""",
-                "python" : sys.version,
-                "torch" : getattr(torch, '__long_version__',torch.__version__), 
-                "xformers": get_xformers_version(), 
-                "gradio": gr.__version__,
-                "huggingface_space": os.environ.get('SPACE_ID', ''),
-                "CUDA": f"""{"CUDA is available. device: " + torch.cuda.get_device_name(0) + " version: " + torch.version.cuda if torch.cuda.is_available() else "CUDA is not available."}""",
+        metadata = {
+            "prompt": text,
+            "negative_prompt": "",
+            "Seed": seed,
+            "steps": 1,
+            "width": "768px",
+            "height": "512px",
+            "Dimension": dimension,
+            "Top-k": topk,
+            "Top-p": topp,
+            "Randomness": temperature,
+            "cfg": cfg_coef,
+            "overlap": overlap,
+            "Melody Condition": melody_name,
+            "Sample Segment": prompt_index,
+            "Duration": initial_duration,
+            "Audio": file.name,
+            "font": settings_font,
+            "font_color": settings_font_color,
+            "harmony_only": harmony_only,
+            "background": background,
+            "include_title": include_title,
+            "include_settings": include_settings,
+            "profile": "Satoshi Nakamoto" if profile.value is None else profile.value.username,
+            "commit": commit_hash(),
+            "tag": git_tag(),
+            "version": gr.__version__,
+            "model_version": MODEL.version,
+            "model_name": MODEL.name,
+            "model_description": f"{MODEL.audio_channels} channels, {MODEL.sample_rate} Hz",
+            "melody_name": melody_name if melody_name else "",
+            "melody_extension": melody_extension if melody_extension else "",
+            "hostname": "https://huggingface.co/spaces/Surn/UnlimitedMusicGen",
+            "version": f"https://huggingface.co/spaces/Surn/UnlimitedMusicGen/commit/{'huggingface' if commit == '<none>' else commit}",
+            "python": sys.version,
+            "torch": getattr(torch, '__long_version__', torch.__version__),
+            "xformers": get_xformers_version(),
+            "gradio": gr.__version__,
+            "huggingface_space": os.environ.get('SPACE_ID', ''),
+            "CUDA": f"{'CUDA is available. device: ' + torch.cuda.get_device_name(0) + ' version: ' + torch.version.cuda if torch.cuda.is_available() else 'CUDA is not available.'}",
         }
         # Add additional metadata from the metadata dictionary (if it exists)
         for key, value in metadata.items():
@@ -392,16 +392,10 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         mp4.save()
         
         try:
-            if os.path.exists(new_video_path):
-                delete_file(new_video_path)
-            # Open the original MP4 file in binary read mode and the new file in binary write mode
-            with open(waveform_video_path, "rb") as src, open(new_video_path, "wb") as dst:
-                if os.path.exists(waveform_video_path):
-                    # Copy the contents from the source file to the destination file
-                    shutil.copyfileobj(src, dst)
-                    waveform_video_path = new_video_path
+            os.replace(waveform_video_path, new_video_path)
+            waveform_video_path = new_video_path
         except Exception as e:
-            print(f"Error copying file: {e}")
+            print(f"Error renaming file: {e}")
 
         if waveform_video_path:
             modules.user_history.save_file(
@@ -454,7 +448,7 @@ def ui(**kwargs):
                                 text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi, soft fade-in, soft fade-out", key="prompt", lines=4)
                                 autoplay_cb = gr.Checkbox(value=False, label="Autoplay?", key="autoplay_cb")
                             with gr.Column():
-                                duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True, key="total_duration")
+                                duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True, key="total_duration", step=1)
                                 model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-small", "stereo-medium", "stereo-large", "stereo-melody", "stereo-melody-large"], label="AI Model", value="medium", interactive=True, key="chosen_model")
                         with gr.Row():
                             submit = gr.Button("Generate", elem_id="btn-generate")
@@ -479,14 +473,14 @@ def ui(**kwargs):
                                 settings_font_color = gr.ColorPicker(label="Settings Font Color", value="#c87f05", interactive=True, key="settings_font_color")
                         with gr.Accordion("Expert", open=False):
                             with gr.Row():
-                                segment_length = gr.Slider(minimum=10, maximum=30, value=30, step =1,label="Music Generation Segment Length (s)", interactive=True,key="segment_length")
+                                segment_length = gr.Slider(minimum=10, maximum=30, value=30, step=1,label="Music Generation Segment Length (s)", interactive=True,key="segment_length")
                                 overlap = gr.Slider(minimum=0, maximum=15, value=1, step=1, label="Segment Overlap", interactive=True)
                                 dimension = gr.Slider(minimum=-2, maximum=2, value=2, step=1, label="Dimension", info="determines which direction to add new segements of audio. (1 = stack tracks, 2 = lengthen, -2..0 = ?)", interactive=True)
                             with gr.Row():
                                 topk = gr.Number(label="Top-k", value=280, precision=0, interactive=True, info="more structured", key="topk")
                                 topp = gr.Number(label="Top-p", value=1150, precision=0, interactive=True, info="more variation, overwrites Top-k if not zero", key="topp")
-                                temperature = gr.Number(label="Randomness Temperature", value=0.7, precision=None, interactive=True, info="less than one to follow Melody Condition song closely", key="temperature")
-                                cfg_coef = gr.Number(label="Classifier Free Guidance", value=3.75, precision=None, interactive=True, info="3.0-4.0, stereo and small need more", key="cfg_coef")
+                                temperature = gr.Number(label="Randomness Temperature", value=0.7, precision=None, step=0.1, interactive=True, info="less than one to follow Melody Condition song closely", key="temperature")
+                                cfg_coef = gr.Number(label="Classifier Free Guidance", value=3.75, precision=None, step=0.1, interactive=True, info="3.0-4.0, stereo and small need more", key="cfg_coef")
                             with gr.Row():
                                 seed = gr.Number(label="Seed", value=-1, precision=0, interactive=True, key="seed")
                                 gr.Button('\U0001f3b2\ufe0f', elem_classes="small-btn").click(fn=lambda: -1, outputs=[seed], queue=False)
