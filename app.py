@@ -331,7 +331,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         audio_write(
             file.name, output, MODEL.sample_rate, strategy="loudness",
             loudness_headroom_db=18, loudness_compressor=True, add_suffix=False, channels=2)
-        waveform_video_path = get_waveform(file.name, bg_image=background, bar_count=45, name=title_file_name)
+        waveform_video_path = get_waveform(file.name, bg_image=background, bar_count=45, name=title_file_name, animate=False)
         # Remove the extension from file.name
         file_name_without_extension = os.path.splitext(file.name)[0]
         # Get the directory, filename, name, extension, and new extension of the waveform video path
