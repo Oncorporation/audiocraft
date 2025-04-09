@@ -243,8 +243,8 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         try:
             if melody and ("melody" in model):
                 # return excess duration, load next model and continue in loop structure building up output_segments
-                if duration > segment_duration:
-                    output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.lm.cfg.dataset.segment_duration, prompt_index, harmony_only, progress=gr.Progress(track_tqdm=True))
+                if duration > MODEL.duration:
+                    output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.duration, prompt_index, harmony_only, progress=gr.Progress(track_tqdm=True))
                 else:
                     # pure original code
                     sr, melody = melody[0], torch.from_numpy(melody[1]).to(MODEL.device).float().t().unsqueeze(0)
@@ -494,7 +494,7 @@ def ui(**kwargs):
             melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], api_name="melody_filepath_change", queue=False)
             reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed_click")
             autoplay_cb.change(fn=lambda x: gr.update(autoplay=x), inputs=[autoplay_cb], outputs=[output], queue=False, api_name="autoplay_cb_change")
-            segment_length.change(fn=load_melody_filepath, queue=False, api_name="segment_length_change", trigger_mode="once", inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], show_progress="minimal")
+            segment_length.release(fn=load_melody_filepath, queue=False, api_name="segment_length_change", trigger_mode="once", inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef], show_progress="minimal")
 
             gr.Examples(
                 examples=[
