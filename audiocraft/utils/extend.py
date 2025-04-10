@@ -14,6 +14,7 @@ from huggingface_hub import hf_hub_download
 import librosa
 import gradio as gr
 import re
+from tqdm import tqdm
 
 
 INTERRUPTING = False
@@ -72,6 +73,7 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
     excess_duration = segment_duration - (total_segments * segment_duration - duration)
     print(f"total Segments to Generate: {total_segments} for {duration} seconds. Each segment is {segment_duration} seconds. Excess {excess_duration} Overlap Loss {duration_loss}")
     duration += duration_loss
+    pbar = tqdm(total=total_segments*2, desc="Generating segments", leave=False)
     while excess_duration + duration_loss > segment_duration:
         total_segments += 1
         #calculate duration loss from segment overlap
@@ -82,6 +84,7 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
         if excess_duration + duration_loss > segment_duration:
             duration += duration_loss
             duration_loss = 0
+    pbar.update(1)
     total_segments = min(total_segments, (720 // segment_duration))
 
     # If melody_segments is shorter than total_segments, repeat the segments until the total_segments is reached
@@ -90,6 +93,7 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
         for i in range(total_segments - len(melody_segments)):
             segment = melody_segments[i]
             melody_segments.append(segment)
+            pbar.update(1)
         print(f"melody_segments: {len(melody_segments)} fixed")
 
     # Iterate over the segments to create list of Meldoy tensors
@@ -116,7 +120,8 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
 
         # Append the segment to the melodys list
         melodys.append(verse)
-
+        pbar.update(1)
+    pbar.close()  
     torch.manual_seed(seed)
 
     # If user selects a prompt segment, generate a new prompt segment to use on all segments
@@ -147,7 +152,7 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
         prompt=None,
     )       
 
-    for idx, verse in enumerate(melodys):
+    for idx, verse in tqdm(enumerate(melodys), total=len(melodys), desc="Generating melody segments"):
         if INTERRUPTING:
             return output_segments, duration
 
