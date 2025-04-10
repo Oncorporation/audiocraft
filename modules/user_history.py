@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.3.2"
+__version__ = "0.3.4"
 
 import json
 import os
@@ -41,6 +41,7 @@ from mutagen.mp3 import MP3, EasyMP3
 import torchaudio
 import subprocess
 from modules.file_utils import get_file_parts, rename_file_to_lowercase_extension
+from tqdm import tqdm
 
 user_profile = gr.State(None)
 
@@ -50,9 +51,10 @@ def get_profile() -> gr.OAuthProfile | None:
 
     return user_profile
 
-def setup(folder_path: str | Path | None = None) -> None:
+def setup(folder_path: str | Path | None = None, display_type: str = "image_path") -> None:
     user_history = _UserHistory()
     user_history.folder_path = _resolve_folder_path(folder_path)
+    user_history.display_type = display_type
     user_history.initialized = True
 
 
@@ -188,6 +190,7 @@ def save_file(
     document: str | Path | None = None,
     label: str | None = None,
     metadata: Dict | None = None,
+    progress= gr.Progress(track_tqdm=True)
 ):
     # Ignore files from logged out users
     if profile is None:
@@ -211,40 +214,99 @@ def save_file(
     if "datetime" not in metadata:
         metadata["datetime"] = str(datetime.now())
 
-    audio_path = None
-    # Copy audio to storage
+    # Count operations to later update progress
+    operations = []
     if audio is not None:
-        audio_path = _copy_file(audio, dst_folder=user_history._user_file_path(username, "audios"), uniqueId=uniqueId)
-        audio_path = _add_metadata(audio_path, metadata)
-
-
-    video_path = None
-    # Copy video to storage - need audio_path if available
+        operations.append("audio")
     if video is not None:
-        video_path = _copy_file(video, dst_folder=user_history._user_file_path(username, "videos"), uniqueId=uniqueId)
-        video_path = _add_metadata(video_path, metadata, str(audio_path))
-
-    # Copy image to storage - need video_path if available
-    image_path = None
+        operations.append("video")
     if image is not None:
-        image_path = _copy_image(image, dst_folder=user_history._user_images_path(username), uniqueId=uniqueId)
-        image_path = _add_metadata(image_path, metadata)
-
-    document_path = None
-    # Copy document to storage
+        operations.append("image")
     if document is not None:
-        document_path = _copy_file(document, dst_folder=user_history._user_file_path(username, "documents"), uniqueId=uniqueId)
-        document_path = _add_metadata(document_path, metadata)
+        operations.append("document")
+    operations.append("jsonl")
+    operations.append("cleanup")
 
-    
-    # If no image, video, audio or document => nothing to save
+    # Create a progress bar
+    with tqdm(total=len(operations), desc="Saving files to history..") as pb:
+        audio_path = None
+        # Copy audio to storage
+        if audio is not None:
+            audio_path1 = _copy_file(audio, dst_folder=user_history._user_file_path(username, "audios"), uniqueId=uniqueId)
+            audio_path = _add_metadata(audio_path1, metadata)
+            pb.update(1)
+
+        video_path = None
+        # Copy video to storage - need audio_path if available
+        if video is not None:
+            video_path1 = _copy_file(video, dst_folder=user_history._user_file_path(username, "videos"), uniqueId=uniqueId)
+            video_path = _add_metadata(video_path1, metadata, str(audio_path))
+            pb.update(1)
+
+        image_path = None
+        # Copy image to storage - need video_path if available
+        if image is not None:
+            image_path1 = _copy_image(image, dst_folder=user_history._user_images_path(username), uniqueId=uniqueId)
+            image_path = _add_metadata(image_path1, metadata)
+            pb.update(1)
+
+        document_path = None
+        # Copy document to storage
+        if document is not None:
+            document_path1 = _copy_file(document, dst_folder=user_history._user_file_path(username, "documents"), uniqueId=uniqueId)
+            document_path = _add_metadata(document_path1, metadata)
+            pb.update(1)
+
+        # Save Json file with combined data
+        data = {
+            "image_path": str(image_path),
+            "video_path": str(video_path),
+            "audio_path": str(audio_path),
+            "document_path": str(document_path),
+            "label": _UserHistory._sanitize_for_json(label),
+            "metadata": _UserHistory._sanitize_for_json(metadata)
+        }
+        with user_history._user_lock(username):
+            with user_history._user_jsonl_path(username).open("a") as f:
+                f.write(json.dumps(data) + "\n")
+        pb.update(1)
+
+        # Cleanup
+        if "audio" in operations and audio_path1 and audio_path1.exists():
+            try:
+                audio_path1.unlink()
+            except Exception as e:
+                print(f"An error occurred while deleting the audio history file: {e}")
+        if "video" in operations and video_path1 and video_path1.exists():
+            try:
+                video_path1.unlink()
+            except Exception as e:
+                print(f"An error occurred while deleting the video history file: {e}")
+        if "image" in operations and image_path1 and image_path1.exists():
+            try:
+                image_path1.unlink()
+            except Exception as e:
+                print(f"An error occurred while deleting the image history file: {e}")
+        if "document" in operations and document_path1 and document_path1.exists():
+            try:
+                document_path1.unlink()
+            except Exception as e:
+                print(f"An error occurred while deleting the document history file: {e}")
+        pb.update(1)
+
+    # If no files were saved, nothing to do
     if image_path is None and video_path is None and audio_path is None and document_path is None:
         return
-    # Save Json file
-    data = {"image_path": str(image_path), "video_path": str(video_path), "audio_path": str(audio_path), "document_path": str(document_path), "label": _UserHistory._sanitize_for_json(label), "metadata": _UserHistory._sanitize_for_json(metadata)}
-    with user_history._user_lock(username):
-        with user_history._user_jsonl_path(username).open("a") as f:
-            f.write(json.dumps(data) + "\n")
+    # else:
+    #     # Return the paths of the saved files
+    #     return {
+    #         "image_path": image_path,
+    #         "video_path": video_path,
+    #         "audio_path": audio_path,
+    #         "document_path": document_path,
+    #         "label": label,
+    #         "metadata": metadata
+    #     }, json.dumps(data)
     
 def get_filepath():
     """Return the path to the user history folder."""
