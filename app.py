@@ -17,6 +17,7 @@ from pathlib import Path
 import time
 import typing as tp
 import warnings
+import gc
 from tqdm import tqdm
 from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_write
@@ -139,7 +140,7 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     symbols = ['_', '.', '-']
     MAX_OVERLAP = int(segment_length  // 2) - 1
     if (melody_filepath is None) or (melody_filepath == ""):
-        return title, gr.update(maximum=0, value=0) , gr.update(value="medium", interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
+        return title, gr.update(maximum=0, value=-1) , gr.update(value="medium", interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
     
     if (title is None) or ("MusicGen" in title) or (title == ""):
         melody_name, melody_extension = get_filename_from_filepath(melody_filepath)
@@ -166,7 +167,7 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     print(f"Melody length: {len(melody_data)}, Melody segments: {total_melodys}\n")
     MAX_PROMPT_INDEX = total_melodys
     
-    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=0), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
+    return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=-1), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
 
 def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, settings_font_size=28, progress=gr.Progress(track_tqdm=True)):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
@@ -331,7 +332,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         audio_write(
             file.name, output, MODEL.sample_rate, strategy="loudness",
             loudness_headroom_db=18, loudness_compressor=True, add_suffix=False, channels=2)
-        waveform_video_path = get_waveform(file.name, bg_image=background, bar_count=45, name=title_file_name, animate=False)
+        waveform_video_path = get_waveform(file.name, bg_image=background, bar_count=45, name=title_file_name, animate=False, progress=gr.Progress(track_tqdm=True))
         # Remove the extension from file.name
         file_name_without_extension = os.path.splitext(file.name)[0]
         # Get the directory, filename, name, extension, and new extension of the waveform video path
@@ -345,6 +346,8 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
 
         commit = commit_hash()
         metadata = {
+            "Title": title,
+            "Year": time.strftime("%Y"),
             "prompt": text,
             "negative_prompt": "",
             "Seed": seed,
@@ -407,6 +410,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             video=waveform_video_path,
             label=title,
             metadata=metadata,
+            progress=gr.Progress(track_tqdm=True)
         )
         
         
@@ -414,6 +418,16 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         MODEL.to('cpu')
     if UNLOAD_MODEL:
         MODEL = None
+
+    # Explicitly delete large tensors or objects
+    del output_segments, output, melody, melody_name, melody_extension, metadata, mp4
+    
+    # Force garbage collection
+    gc.collect()
+    
+    # Synchronize CUDA streams
+    torch.cuda.synchronize()
+
     torch.cuda.empty_cache()
     torch.cuda.ipc_collect()
     return waveform_video_path, file.name, seed
@@ -552,7 +566,9 @@ def ui(**kwargs):
             )
             
         with gr.Tab("User History") as history_tab:
+            modules.user_history.setup(display_type="video_path")
             modules.user_history.render()
+            
         user_profile = gr.State(None)
             
         with gr.Row("Versions") as versions_row:

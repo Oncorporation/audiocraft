@@ -9,6 +9,7 @@ import shutil
 import subprocess
 from tempfile import NamedTemporaryFile
 from pathlib import Path
+from tqdm import tqdm
 
 
 class MatplotlibBackendMananger:
@@ -42,6 +43,7 @@ def make_waveform(
     bar_width: float = 0.6,
     animate: bool = False,
     name: str = "",
+    progress= gr.Progress(track_tqdm=True)
 ) -> str:
     """
     Generates a waveform video from an audio file. Useful for creating an easy to share audio visualization. The output should be passed into a `gr.Video` component.
