@@ -411,8 +411,8 @@ class MusicGen:
 
         def _progress_callback(generated_tokens: int, tokens_to_generate: int):
             generated_tokens += current_gen_offset
-            generated_tokens /= ((tokens_to_generate - 3) / self.duration)
-            tokens_to_generate /= ((tokens_to_generate - 3) / self.duration)
+            generated_tokens /= ((tokens_to_generate) / self.duration)
+            tokens_to_generate /= ((tokens_to_generate) / self.duration)
             if self._progress_callback is not None:
                 # Note that total_gen_len might be quite wrong depending on the
                 # codebook pattern used, but with delay it is almost accurate.
