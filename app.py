@@ -134,6 +134,12 @@ def git_tag():
         except Exception:
             return "<none>"
 
+def load_background_filepath(video_orientation):
+    if video_orientation == "Landscape":
+        return "./assets/background.png"
+    else:
+        return "./assets/background_portrait.png"
+
 def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperature, cfg_coef, segment_length = 30):
     # get melody filename
     #$Union[str, os.PathLike]
@@ -169,7 +175,7 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     
     return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=-1), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
 
-def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, settings_font_size=28, progress=gr.Progress(track_tqdm=True)):
+def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, settings_font_size=28, settings_animate_waveform=False, video_orientation="Landscape", progress=gr.Progress(track_tqdm=True)):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
     output_segments = None
     melody_name = "Not Used"
@@ -323,16 +329,20 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             return None, None, seed
         else:
             output = output.detach().cpu().float()[0]
+    
+    video_width, video_height = 768, 512
+    if video_orientation == "Portait":
+        video_width, video_height = 512, 768
 
     title_file_name = convert_title_to_filename(title)
     with NamedTemporaryFile("wb", suffix=".wav", delete=False, prefix=title_file_name) as file:
         video_description = f"{text}\n Duration: {str(initial_duration)} Dimension: {dimension}\n Top-k:{topk} Top-p:{topp}\n Randomness:{temperature}\n cfg:{cfg_coef} overlap: {overlap}\n Seed: {seed}\n Model: {model}\n Melody Condition:{melody_name}\n Sample Segment: {prompt_index}"
         if include_settings or include_title:
-            background = add_settings_to_image(title if include_title else "",video_description if include_settings else "",background_path=background,font=settings_font,font_color=settings_font_color, font_size=settings_font_size)
+            background = add_settings_to_image(title if include_title else "",video_description if include_settings else "",width=video_width, height=video_height, background_path=background,font=settings_font,font_color=settings_font_color, font_size=settings_font_size)
         audio_write(
             file.name, output, MODEL.sample_rate, strategy="loudness",
             loudness_headroom_db=18, loudness_compressor=True, add_suffix=False, channels=2)
-        waveform_video_path = get_waveform(file.name, bg_image=background, bar_count=45, name=title_file_name, animate=False, progress=gr.Progress(track_tqdm=True))
+        waveform_video_path = get_waveform(file.name, bg_image=background, bar_count=45, name=title_file_name, animate=settings_animate_waveform, progress=gr.Progress(track_tqdm=True))
         # Remove the extension from file.name
         file_name_without_extension = os.path.splitext(file.name)[0]
         # Get the directory, filename, name, extension, and new extension of the waveform video path
@@ -352,8 +362,8 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             "negative_prompt": "",
             "Seed": seed,
             "steps": 1,
-            "width": "768px",
-            "height": "512px",
+            "wdth": video_width,
+            "hght": video_height,
             "Dimension": dimension,
             "Top-k": topk,
             "Top-p": topp,
@@ -483,11 +493,13 @@ def ui(**kwargs):
                                 with gr.Column():
                                     include_title = gr.Checkbox(label="Add Title", value=True, interactive=True,key="add_title")
                                     include_settings = gr.Checkbox(label="Add Settings to background", value=True, interactive=True, key="add_settings")
+                                    video_orientation = gr.Radio(label="Video Orientation", choices=["Landscape", "Portait"], value="Landscape", interactive=True, key="video_orientation")
                             with gr.Row():
                                 title = gr.Textbox(label="Title", value="UnlimitedMusicGen", interactive=True, key="song_title")
                                 settings_font = gr.Text(label="Settings Font", value="./assets/arial.ttf", interactive=True)
                                 settings_font_color = gr.ColorPicker(label="Settings Font Color", value="#c87f05", interactive=True, key="settings_font_color")
                                 settings_font_size = gr.Slider(minimum=8, maximum=64, value=28, step=1, label="Settings Font Size", interactive=True, key="settings_font_size")
+                                settings_animate_waveform = gr.Checkbox(label="Animate Waveform", value=False, interactive=True, key="animate_waveform")
                         with gr.Accordion("Expert", open=False):
                             with gr.Row():
                                 segment_length = gr.Slider(minimum=10, maximum=30, value=30, step=1,label="Music Generation Segment Length (s)", interactive=True,key="segment_length")
@@ -507,7 +519,8 @@ def ui(**kwargs):
                         wave_file = gr.File(label=".wav file", elem_id="output_wavefile", interactive=True)
                         seed_used = gr.Number(label='Seed used', value=-1, interactive=False)
 
-            radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False)
+            radio.change(toggle_audio_src, radio, [melody_filepath], queue=False, show_progress=False, api_name="audio_src_change")
+            video_orientation.change(load_background_filepath, inputs=[video_orientation], outputs=[background], queue=False, show_progress=False, api_name="video_orientation_change")
             melody_filepath.change(load_melody_filepath, inputs=[melody_filepath, title, model,topp, temperature, cfg_coef, segment_length], outputs=[title, prompt_index , model, topp, temperature, cfg_coef, overlap], api_name="melody_filepath_change", queue=False)
             reuse_seed.click(fn=lambda x: x, inputs=[seed_used], outputs=[seed], queue=False, api_name="reuse_seed_click")
             autoplay_cb.change(fn=lambda x: gr.update(autoplay=x), inputs=[autoplay_cb], outputs=[output], queue=False, api_name="autoplay_cb_change")
@@ -582,7 +595,7 @@ def ui(**kwargs):
             api_name="submit"
          ).then(
              predict,
-             inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only, user_profile, segment_length, settings_font_size],
+             inputs=[model, text,melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap, prompt_index, include_title, include_settings, harmony_only, user_profile, segment_length, settings_font_size, settings_animate_waveform, video_orientation],
              outputs=[output, wave_file, seed_used], scroll_to_output=True)
 
         # Show the interface
