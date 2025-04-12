@@ -177,7 +177,7 @@ def save_image(
         metadata = {}
     if "datetime" not in metadata:
         metadata["datetime"] = str(datetime.now())
-    data = {"path": str(image_path), "label": label, "metadata": metadata}
+    data = {"image_path": str(image_path), "label": label, "metadata": metadata}
     with user_history._user_lock(username):
         with user_history._user_jsonl_path(username).open("a") as f:
             f.write(json.dumps(data) + "\n")
