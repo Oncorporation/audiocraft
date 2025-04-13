@@ -617,9 +617,11 @@ def ui(**kwargs):
             launch_kwargs['inbrowser'] = inbrowser
         if share:
             launch_kwargs['share'] = share
+        launch_kwargs['allowed_paths'] = ["assets", "./assets", "images", "./images", 'e:/TMP']
+        launch_kwargs['favicon_path'] = "./assets/favicon.ico"
 
 
-        demo.queue(max_size=10, api_open=False).launch(**launch_kwargs, allowed_paths=["assets","./assets","images","./images", 'e:/TMP'], favicon_path="./assets/favicon.ico")
+        demo.queue(max_size=10, api_open=False).launch(**launch_kwargs)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
