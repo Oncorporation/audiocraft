@@ -666,16 +666,6 @@ if __name__ == "__main__":
     launch_kwargs = {}
     launch_kwargs['server_name'] = args.listen
 
-    if args.username and args.password:
-        launch_kwargs['auth'] = (args.username, args.password)
-    if args.server_port:
-        launch_kwargs['server_port'] = args.server_port
-    if args.inbrowser:
-        launch_kwargs['inbrowser'] = args.inbrowser
-    if args.share:
-        launch_kwargs['share'] = args.share
-    launch_kwargs['favicon_path']= "./assets/favicon.ico"
-        
     if args.cache:
         MODELS = {}
     ui(
