@@ -8,6 +8,7 @@ torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu124
 torchaudio>=2.0.0,<2.6.2 --extra-index-url https://download.pytorch.org/whl/cu124
 soundfile
 huggingface_hub
+hf_xet
 tqdm
 transformers>=4.48.0  # need Encodec there.
 xformers>=0.0.23 --index-url https://download.pytorch.org/whl/cu124
