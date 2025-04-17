@@ -95,26 +95,34 @@ def get_waveform(*args, **kwargs):
         return out
         
 
-def load_model(version):
+def load_model(version, progress=gr.Progress(track_tqdm=True)):
     global MODEL, MODELS, UNLOAD_MODEL
     print("Loading model", version)
-    if MODELS is None:
-        return MusicGen.get_pretrained(version)
-    else:
-        t1 = time.monotonic()
-        if MODEL is not None:
-            MODEL.to('cpu') # move to cache
-            print("Previous model moved to CPU in %.2fs" % (time.monotonic() - t1))
-            t1 = time.monotonic()
-        if MODELS.get(version) is None:
-            print("Loading model %s from disk" % version)
+
+    with tqdm(total=100, desc=f"Loading model '{version}'", unit="step") as pbar:
+        if MODELS is None:
+            pbar.update(50)  # Simulate progress for loading
             result = MusicGen.get_pretrained(version)
-            MODELS[version] = result
-            print("Model loaded in %.2fs" % (time.monotonic() - t1))
+            pbar.update(50)  # Complete progress
             return result
-        result = MODELS[version].to('cuda')
-        print("Cached model loaded in %.2fs" % (time.monotonic() - t1))
-        return result
+        else:
+            t1 = time.monotonic()
+            if MODEL is not None:
+                MODEL.to('cpu')  # Move to cache
+                print("Previous model moved to CPU in %.2fs" % (time.monotonic() - t1))
+                pbar.update(30)  # Simulate progress for moving model to CPU
+                t1 = time.monotonic()
+            if MODELS.get(version) is None:
+                print("Loading model %s from disk" % version)
+                result = MusicGen.get_pretrained(version)
+                MODELS[version] = result
+                print("Model loaded in %.2fs" % (time.monotonic() - t1))
+                pbar.update(70)  # Simulate progress for loading from disk
+                return result
+            result = MODELS[version].to('cuda')
+            print("Cached model loaded in %.2fs" % (time.monotonic() - t1))
+            pbar.update(100)  # Complete progress
+            return result
 
 def get_melody(melody_filepath):
         audio_data= list(librosa.load(melody_filepath, sr=None))
@@ -188,7 +196,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
     INTERRUPTED = False
     INTERRUPTING = False
     if temperature < 0:
-        temperature -0
+        temperature = 0.1
         raise gr.Error("Temperature must be >= 0.")
     if topk < 0:
         topk = 1
@@ -197,8 +205,16 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
         topp =1
         raise gr.Error("Topp must be non-negative.")
 
+    # Clean up GPU resources only if the model changes
+    if MODEL is not None and model not in MODEL.name:
+        print(f"Switching model from {MODEL.name} to {model}. Cleaning up resources.")
+        del MODEL  # Delete the current model
+        torch.cuda.empty_cache()  # Clear GPU memory
+        gc.collect()  # Force garbage collection
+        MODEL = None
+
     try:
-        if MODEL is None or MODEL.name != model:
+        if MODEL is None or model not in MODEL.name:
             MODEL = load_model(model)
         else:
             if MOVE_TO_CPU:
@@ -433,12 +449,12 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
     del output_segments, output, melody, melody_name, melody_extension, metadata, mp4
     
     # Force garbage collection
-    gc.collect()
+    #gc.collect()
     
     # Synchronize CUDA streams
     torch.cuda.synchronize()
 
-    torch.cuda.empty_cache()
+    #torch.cuda.empty_cache()
     torch.cuda.ipc_collect()
     return waveform_video_path, file.name, seed
 
@@ -556,7 +572,7 @@ def ui(**kwargs):
                         3.75
                     ],
                     [
-                        "4/4 120bpm 320kbps 48khz, a light and cheerly EDM track, with syncopated drums, aery pads, and strong emotions",
+                        "4/4 120bpm 320kbps 48khz, a light and cheery EDM track, with syncopated drums, aery pads, and strong emotions",
                         "./assets/bach.mp3",
                         "melody-large",
                         "EDM my Bach",
