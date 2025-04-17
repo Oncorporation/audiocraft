@@ -200,7 +200,7 @@ def apply_tafade(audio: torch.Tensor, sample_rate, duration=3.0, out=True, start
     if out:
         fade_transform.fade_out_len = fade_samples
     else:
-        fade_transform.fade_in_len = fade_samples        
+        fade_transform.fade_in_len = fade_samples
 
     # Select the portion of the audio to apply the fade
     if start:
