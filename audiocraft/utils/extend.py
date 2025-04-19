@@ -114,8 +114,9 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
             sr, verse = melody_segments[segment_idx][0], torch.from_numpy(melody_segments[segment_idx][1]).to(MODEL.device).float().t().unsqueeze(0)
 
         print(f"shape:{verse.shape} dim:{verse.dim()}")
+        #if verse is 2D, add 3rd dimension
         if verse.dim() == 2:
-            verse = verse[None]
+           verse = verse[None]
         verse = verse[..., :int(sr * MODEL.lm.cfg.dataset.segment_duration)]
 
         # Append the segment to the melodys list
@@ -182,16 +183,29 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
       
             
         print(f"Generating New Melody Segment {idx + 1}: {text}\r")
-        output = MODEL.generate_with_all(
+        output, tokens = MODEL.generate_with_all(
             descriptions=[text],
             melody_wavs=verse,
             sample_rate=sr,
             progress=True,
             prompt=prompt_segment,
+            return_tokens = True
         )
         # If user selects a prompt segment, use the prompt segment for all segments
         # Otherwise, use the previous segment as the prompt
         if prompt_index < 0:
+            if harmony_only:
+                # REMOVE PERCUSION FROM MELODY
+                # Apply HPSS using librosa
+                verse_harmonic, verse_percussive = librosa.effects.hpss(output.detach().cpu().numpy())
+                # Convert the separated components back to torch.Tensor
+                #harmonic_tensor = torch.from_numpy(verse_harmonic)
+                #percussive_tensor = torch.from_numpy(verse_percussive)
+                verse = torch.from_numpy(verse_harmonic).to(MODEL.device).float()
+                # if verse is 2D, add extra dimension
+                if verse.dim() == 2:
+                   verse = verse[None]
+                output = verse
             prompt_segment = output
 
         # Append the generated output to the list of segments
