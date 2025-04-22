@@ -12,6 +12,10 @@ from . import builders, loaders
 from .encodec import (
     CompressionModel, EncodecModel, DAC,
     HFEncodecModel, HFEncodecCompressionModel)
-from .musicgen import MusicGen
 from .lm import LMModel
+from .lm_magnet import MagnetLMModel
+from .flow_matching import FlowMatchingModel
 from .encodec import CompressionModel, EncodecModel
+from .musicgen import MusicGen
+from .magnet import MAGNeT
+from .unet import DiffusionUnet

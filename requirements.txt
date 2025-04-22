@@ -9,7 +9,7 @@ torchaudio>=2.0.0,<2.6.2 --extra-index-url https://download.pytorch.org/whl/cu12
 soundfile
 huggingface_hub
 tqdm
-transformers>=4.48.0  # need Encodec there.
+transformers==4.43.4  # need Encodec there.
 xformers>=0.0.23 --index-url https://download.pytorch.org/whl/cu124
 demucs
 librosa
@@ -17,7 +17,9 @@ soundfile
 gradio==5.23.3
 gradio[oauth]
 pillow
+torchdiffeq
 torchmetrics
+nnAudio
 encodec
 protobuf>=3.20.1
 filetype

@@ -183,7 +183,7 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     
     return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=-1), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
 
-def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, settings_font_size=28, settings_animate_waveform=False, video_orientation="Landscape", progress=gr.Progress(track_tqdm=True)):
+def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, settings_font_size=28, settings_animate_waveform=False, video_orientation="Landscape", excerpt_duration=3.5, progress=gr.Progress(track_tqdm=True)):
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
     output_segments = None
     melody_name = "Not Used"
@@ -251,24 +251,47 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
 
 
         print(f'Segment duration: {segment_duration}, duration: {duration}, overlap: {overlap}')
-        MODEL.set_generation_params(
-            use_sampling=True,
-            top_k=topk,
-            top_p=topp,
-            temperature=temperature,
-            cfg_coef=cfg_coef,
-            duration=segment_duration,
-            two_step_cfg=False,
-            extend_stride=10,
-            rep_penalty=0.5
-        )
+        if ("style" in model) and melody:
+            # style and text-to-music
+            MODEL.set_generation_params(
+                use_sampling=True,
+                top_k=topk,
+                top_p=topp,
+                temperature=temperature,
+                cfg_coef=cfg_coef,
+                duration=segment_duration,
+                two_step_cfg=False,
+                cfg_coef_beta=5, # double CFG is only useful for text-and-style conditioning
+            )
+
+            MODEL.set_style_conditioner_params(
+                eval_q=3, # integer between 1 and 6
+                            # eval_q is the level of quantization that passes
+                            # through the conditioner. When low, the models adheres less to the 
+                            # audio conditioning
+                excerpt_length=excerpt_duration, # the length in seconds that is taken by the model in the provided excerpt, can be
+                                    # between 1.5 and 4.5 seconds but it has to be shortest to the length of the provided conditioning
+            )
+        else:
+            MODEL.set_generation_params(
+                use_sampling=True,
+                top_k=topk,
+                top_p=topp,
+                temperature=temperature,
+                cfg_coef=cfg_coef,
+                duration=segment_duration,
+                two_step_cfg=False,
+                extend_stride=10,
+                rep_penalty=0.5,
+                cfg_coef_beta=None, # double CFG is only useful for text-and-style conditioning
+            )
         MODEL.set_custom_progress_callback(gr.Progress(track_tqdm=True))
 
         try:
-            if melody and ("melody" in model):
+            if melody and ("melody" or "style" in model):
                 # return excess duration, load next model and continue in loop structure building up output_segments
                 if duration > MODEL.duration:
-                    output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.duration, prompt_index, harmony_only, progress=gr.Progress(track_tqdm=True))
+                    output_segments, duration = generate_music_segments(text, melody, seed, MODEL, duration, overlap, MODEL.duration, prompt_index, harmony_only, excerpt_duration, progress=gr.Progress(track_tqdm=True))
                 else:
                     # pure original code
                     sr, melody = melody[0], torch.from_numpy(melody[1]).to(MODEL.device).float().t().unsqueeze(0)
@@ -487,11 +510,11 @@ def ui(**kwargs):
                     with gr.Column():
                         with gr.Row():
                             with gr.Column():
-                                text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 48khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi, soft fade-in, soft fade-out", key="prompt", lines=4)
+                                text = gr.Text(label="Describe your music", interactive=True, value="4/4 100bpm 320kbps 32khz, Industrial/Electronic Soundtrack, Dark, Intense, Sci-Fi, soft fade-in, soft fade-out", key="prompt", lines=4)
                                 autoplay_cb = gr.Checkbox(value=False, label="Autoplay?", key="autoplay_cb")
                             with gr.Column():
                                 duration = gr.Slider(minimum=1, maximum=720, value=10, label="Duration (s)", interactive=True, key="total_duration", step=1)
-                                model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-small", "stereo-medium", "stereo-large", "stereo-melody", "stereo-melody-large"], label="AI Model", value="medium", interactive=True, key="chosen_model")
+                                model = gr.Radio(["melody", "medium", "small", "large", "melody-large", "stereo-small", "stereo-medium", "stereo-large", "stereo-melody", "stereo-melody-large", "style"], label="AI Model", value="medium", interactive=True, key="chosen_model")
                         with gr.Row():
                             submit = gr.Button("Generate", elem_id="btn-generate")
                             # Adapted from https://github.com/rkfg/audiocraft/blob/long/app.py, MIT license.
@@ -545,7 +568,7 @@ def ui(**kwargs):
             gr.Examples(
                 examples=[
                     [
-                        "4/4 120bpm 320kbps 48khz, An 80s driving pop song with heavy drums and synth pads in the background",
+                        "4/4 120bpm 320kbps 32khz, An 80s driving pop song with heavy drums and synth pads in the background",
                         "./assets/bach.mp3",
                         "melody",
                         "80s Pop Synth",
@@ -554,7 +577,7 @@ def ui(**kwargs):
                         3.5
                     ],
                     [
-                        "4/4 120bpm 320kbps 48khz, A cheerful country song with acoustic guitars",
+                        "4/4 120bpm 320kbps 32khz, A cheerful country song with acoustic guitars",
                         "./assets/bolero_ravel.mp3",
                         "stereo-melody-large",
                         "Country Guitar",
@@ -563,7 +586,7 @@ def ui(**kwargs):
                         4.0
                     ],
                     [
-                        "4/4 120bpm 320kbps 48khz, 90s rock song with electric guitar and heavy drums",
+                        "4/4 120bpm 320kbps 32khz, 90s rock song with electric guitar and heavy drums",
                         None,
                         "stereo-medium", 
                         "90s Rock Guitar",
@@ -572,7 +595,7 @@ def ui(**kwargs):
                         3.75
                     ],
                     [
-                        "4/4 120bpm 320kbps 48khz, a light and cheery EDM track, with syncopated drums, aery pads, and strong emotions",
+                        "4/4 120bpm 320kbps 32khz, a light and cheery EDM track, with syncopated drums, aery pads, and strong emotions",
                         "./assets/bach.mp3",
                         "melody-large",
                         "EDM my Bach",
@@ -581,7 +604,7 @@ def ui(**kwargs):
                         3.75
                     ],
                     [
-                        "4/4 320kbps 48khz, lofi slow bpm electro chill with organic samples",
+                        "4/4 320kbps 32khz, lofi slow bpm electro chill with organic samples",
                         None,
                         "medium", 
                         "LoFi Chill",

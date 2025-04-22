@@ -18,11 +18,12 @@ import torch
 import gradio as gr
 
 from .encodec import CompressionModel
+from .genmodel import BaseGenModel
 from .lm import LMModel
 from .builders import get_debug_compression_model, get_debug_lm_model, get_wrapped_compression_model
 from .loaders import load_compression_model, load_lm_model, HF_MODEL_CHECKPOINTS_MAP
 from ..data.audio_utils import convert_audio
-from ..modules.conditioners import ConditioningAttributes, WavCondition
+from ..modules.conditioners import ConditioningAttributes, WavCondition, StyleConditioner
 from ..utils.autocast import TorchAutocast
 
 MelodyList = tp.List[tp.Optional[torch.Tensor]]
@@ -108,6 +109,7 @@ class MusicGen:
         - stereo-melody (1.5B) text to music and text+melody to music, # see: https://huggingface.co/facebook/musicgen-stereo-melody
         - stereo-large (3.3B), text to music, # see: https://huggingface.co/facebook/musicgen-stereo-large
         - stereo-melody-large (3.3B), text to music, and text+melody to music # see: https://huggingface.co/facebook/musicgen-stereo-melody-large
+        - musicgen-style (1.5B), text to music, # see: https://huggingface.co/facebook/musicgen-style
         """
 
         if device is None:
@@ -120,7 +122,7 @@ class MusicGen:
             # used only for unit tests
             compression_model = get_debug_compression_model(device)
             lm = get_debug_lm_model(device)
-            return MusicGen(name, compression_model, lm)
+            return MusicGen(name, compression_model, lm, max_duration=30)
 
         if name not in HF_MODEL_CHECKPOINTS_MAP:
             if not os.path.isfile(name) and not os.path.isdir(name):
@@ -143,6 +145,7 @@ class MusicGen:
     def set_generation_params(self, use_sampling: bool = True, top_k: int = 250,
                               top_p: float = 0.0, temperature: float = 1.0,
                               duration: float = 30.0, cfg_coef: float = 3.0,
+                              cfg_coef_beta: tp.Optional[float] = None,
                               two_step_cfg: bool = False, extend_stride: float = 10, rep_penalty: float = None):
         """Set the generation parameters for MusicGen.
 
@@ -153,6 +156,10 @@ class MusicGen:
             temperature (float, optional): Softmax temperature parameter. Defaults to 1.0.
             duration (float, optional): Duration of the generated waveform. Defaults to 30.0.
             cfg_coef (float, optional): Coefficient used for classifier free guidance. Defaults to 3.0.
+            cfg_coef_beta (float, optional): beta coefficient in double classifier free guidance.
+                Should be only used for MusicGen melody if we want to push the text condition more than
+                the audio conditioning. See paragraph 4.3 in https://arxiv.org/pdf/2407.12563 to understand
+                double CFG.
             two_step_cfg (bool, optional): If True, performs 2 forward for Classifier Free Guidance,
                 instead of batching together the two. This has some impact on how things
                 are padded but seems to have little impact in practice.
@@ -172,7 +179,29 @@ class MusicGen:
             'top_p': top_p,
             'cfg_coef': cfg_coef,
             'two_step_cfg': two_step_cfg,
+            'cfg_coef_beta': cfg_coef_beta,
         }
+
+    def set_style_conditioner_params(self, eval_q: int = 3, excerpt_length: float = 3.0,
+                                     ds_factor: tp.Optional[int] = None,
+                                     encodec_n_q: tp.Optional[int] = None) -> None:
+        """Set the parameters of the style conditioner
+        Args:
+            eval_q (int): the number of residual quantization streams used to quantize the style condition
+                the smaller it is, the narrower is the information bottleneck
+            excerpt_length (float): the excerpt length in seconds that is extracted from the audio
+                conditioning
+            ds_factor: (int): the downsampling factor used to downsample the style tokens before
+                using them as a prefix
+            encodec_n_q: (int, optional): if encodec is used as a feature extractor, sets the number
+                of streams that is used to extract features
+        """
+        assert isinstance(self.lm.condition_provider.conditioners.self_wav, StyleConditioner), \
+            "Only use this function if you model is MusicGen-Style"
+        self.lm.condition_provider.conditioners.self_wav.set_params(eval_q=eval_q,
+                                                                    excerpt_length=excerpt_length,
+                                                                    ds_factor=ds_factor,
+                                                                    encodec_n_q=encodec_n_q)
 
     def set_custom_progress_callback(self, progress_callback: tp.Union[tp.Callable[[int, int], None],gr.Progress] = None):
         """Override the default progress callback."""
@@ -399,8 +428,8 @@ class MusicGen:
         """Generate discrete audio tokens given audio prompt and/or conditions.
 
         Args:
-            attributes (tp.List[ConditioningAttributes]): Conditions used for generation (text/melody).
-            prompt_tokens (tp.Optional[torch.Tensor]): Audio prompt used for continuation.
+            attributes (list of ConditioningAttributes): Conditions used for generation (text/melody).
+            prompt_tokens (torch.Tensor, optional): Audio prompt used for continuation.
             progress (bool, optional): Flag to display progress of the generation process. Defaults to False.
         Returns:
             torch.Tensor: Generated audio, of shape [B, C, T], T is defined by the generation params.
