@@ -51,7 +51,7 @@ def separate_audio_segments(audio, segment_duration=30, overlap=1):
     print(f"separate_audio_segments: {len(segments)} segments of length {segment_samples // sr} seconds")
     return segments
 
-def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:int=1, segment_duration:int=30, prompt_index:int=0, harmony_only:bool= False, progress= gr.Progress(track_tqdm=True)):
+def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:int=1, segment_duration:int=30, prompt_index:int=0, harmony_only:bool= False, excerpt_duration:float=3.5, progress= gr.Progress(track_tqdm=True)):
     # generate audio segments
     melody_segments = separate_audio_segments(melody, segment_duration, 0) 
     
@@ -96,7 +96,7 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
             pbar.update(1)
         print(f"melody_segments: {len(melody_segments)} fixed")
 
-    # Iterate over the segments to create list of Meldoy tensors
+    # Iterate over the segments to create list of Melody tensors
     for segment_idx in range(total_segments):
         if INTERRUPTING:
             return [], duration
@@ -119,6 +119,10 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
            verse = verse[None]
         verse = verse[..., :int(sr * MODEL.lm.cfg.dataset.segment_duration)]
 
+        # Reduce the length of verse to sr * excerpt_duration
+        if ("style" in MODEL.name):
+            verse = verse[:, :, :int(sr * excerpt_duration)]
+
         # Append the segment to the melodys list
         melodys.append(verse)
         pbar.update(1)
@@ -139,10 +143,17 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
         top_p=MODEL.generation_params["top_p"],
         temperature=MODEL.generation_params["temp"],
         cfg_coef=MODEL.generation_params["cfg_coef"],
+        cfg_coef_beta=MODEL.generation_params["cfg_coef_beta"],
         duration=segment_duration,
         two_step_cfg=False,
-        rep_penalty=0.5
+        rep_penalty=0.5,
     )
+    if ("style" in MODEL.name):
+        MODEL.set_style_conditioner_params(
+            eval_q=MODEL.lm.condition_provider.conditioners.self_wav.eval_q, # integer between 1 and 6
+            excerpt_length=excerpt_duration, # the length in seconds that is taken by the model in the provided excerpt, can be between 1.5 and 4.5 seconds but it has to be shortest to the length of the provided conditioning
+        )
+
     # Generate a new prompt segment. This will be applied to all segments for consistency
     print(f"Generating New Prompt Segment: {text} from verse {prompt_index}\r")
     prompt_segment = MODEL.generate_with_all(
@@ -168,10 +179,18 @@ def generate_music_segments(text, melody, seed, MODEL, duration:int=10, overlap:
                 top_p=MODEL.generation_params["top_p"],
                 temperature=MODEL.generation_params["temp"],
                 cfg_coef=MODEL.generation_params["cfg_coef"],
+                cfg_coef_beta=MODEL.generation_params["cfg_coef_beta"],
                 duration=mod_duration,
                 two_step_cfg=False,
-                rep_penalty=0.5
+                rep_penalty=0.5,
             )
+
+            if ("style" in MODEL.name):
+                MODEL.set_style_conditioner_params(
+                    eval_q=MODEL.lm.condition_provider.conditioners.self_wav.eval_q, # integer between 1 and 6
+                    excerpt_length=min(excerpt_duration, mod_duration), # the length in seconds that is taken by the model in the provided excerpt, can be between 1.5 and 4.5 seconds but it has to be shortest to the length of the provided conditioning
+                )
+
             try:
                 # get last chunk
                 verse = verse[:, :, -mod_duration*MODEL.sample_rate:]

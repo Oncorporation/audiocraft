@@ -28,6 +28,7 @@ from omegaconf import OmegaConf, DictConfig
 import torch
 
 import audiocraft
+
 from . import builders
 from .encodec import CompressionModel
 
@@ -47,6 +48,7 @@ HF_MODEL_CHECKPOINTS_MAP = {
     "stereo-large": "facebook/musicgen-stereo-large",
     "stereo-melody": "facebook/musicgen-stereo-melody",
     "stereo-melody-large": "facebook/musicgen-stereo-melody-large",
+    "style": "facebook/musicgen-style",
 }
 
 
@@ -156,7 +158,7 @@ def load_compression_model(file_or_url_or_id: tp.Union[Path, str], device='cpu',
     # Handle newer model formats that might not have xp.cfg
     if 'xp.cfg' not in pkg:
         if file_or_url_or_id in ['melody-large', 'stereo-melody', 'stereo-medium', 
-                                 'stereo-small', 'stereo-large', 'stereo-melody-large']:
+                                 'stereo-small', 'stereo-large', 'stereo-melody-large','style']:
             print(f"Using fallback configuration for {file_or_url_or_id}")
             # Create a default configuration based on the model type
             # This is where you'd need to add model-specific configurations
@@ -206,6 +208,52 @@ def load_lm_model(file_or_url_or_id: tp.Union[Path, str], device='cpu', cache_di
     _delete_param(cfg, 'conditioners.args.merge_text_conditions_p')
     _delete_param(cfg, 'conditioners.args.drop_desc_p')
     model = builders.get_lm_model(cfg)
+    model.load_state_dict(pkg['best_state'])
+    model.eval()
+    model.cfg = cfg
+    return model
+
+
+def load_lm_model_magnet(file_or_url_or_id: tp.Union[Path, str], compression_model_frame_rate: int,
+                         device='cpu', cache_dir: tp.Optional[str] = None):
+    pkg = load_lm_model_ckpt(file_or_url_or_id, cache_dir=cache_dir)
+    cfg = OmegaConf.create(pkg['xp.cfg'])
+    cfg.device = str(device)
+    if cfg.device == 'cpu':
+        cfg.dtype = 'float32'
+    else:
+        cfg.dtype = 'float16'
+    _delete_param(cfg, 'conditioners.args.merge_text_conditions_p')
+    _delete_param(cfg, 'conditioners.args.drop_desc_p')
+
+    cfg.transformer_lm.compression_model_framerate = compression_model_frame_rate
+    cfg.transformer_lm.segment_duration = cfg.dataset.segment_duration
+    cfg.transformer_lm.span_len = cfg.masking.span_len
+
+    # MAGNeT models v1 support only xformers backend.
+    from audiocraft.modules.transformer import set_efficient_attention_backend
+
+    if cfg.transformer_lm.memory_efficient:
+        set_efficient_attention_backend("xformers")
+
+    model = builders.get_lm_model(cfg)
+    model.load_state_dict(pkg['best_state'])
+    model.eval()
+    model.cfg = cfg
+    return model
+
+
+def load_jasco_model(file_or_url_or_id: tp.Union[Path, str],
+                     compression_model: CompressionModel,
+                     device='cpu', cache_dir: tp.Optional[str] = None):
+    pkg = load_lm_model_ckpt(file_or_url_or_id, cache_dir=cache_dir)
+    cfg = OmegaConf.create(pkg['xp.cfg'])
+    cfg.device = str(device)
+    if cfg.device == 'cpu':
+        cfg.dtype = 'float32'
+    else:
+        cfg.dtype = 'float16'
+    model = builders.get_jasco_model(cfg, compression_model)
     model.load_state_dict(pkg['best_state'])
     model.eval()
     model.cfg = cfg
