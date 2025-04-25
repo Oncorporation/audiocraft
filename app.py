@@ -281,7 +281,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
                 cfg_coef=cfg_coef,
                 duration=segment_duration,
                 two_step_cfg=False,
-                extend_stride=10,
+                extend_stride=2,
                 rep_penalty=0.5,
                 cfg_coef_beta=None, # double CFG is only useful for text-and-style conditioning
             )

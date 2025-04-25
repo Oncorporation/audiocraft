@@ -453,8 +453,8 @@ class MusicGen:
                 print(f'{generated_tokens: 6.2f} / {tokens_to_generate: 6.2f}', end='\r')
 
         if prompt_tokens is not None:
-            assert max_prompt_len > prompt_tokens.shape[-1], \
-                "Prompt is longer than audio to generate"
+            if prompt_tokens.shape[-1] > max_prompt_len:
+                prompt_tokens = prompt_tokens[..., :max_prompt_len]
 
         # callback = None
         callback = _progress_callback
