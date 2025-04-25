@@ -16,6 +16,7 @@ import typing as tp
 
 import omegaconf
 import torch
+import gradio as gr
 
 from .encodec import CompressionModel
 from .lm import LMModel
@@ -191,11 +192,11 @@ class BaseGenModel(ABC):
         return self.generate_audio(tokens)
 
     def _generate_tokens(self, attributes: tp.List[ConditioningAttributes],
-                         prompt_tokens: tp.Optional[torch.Tensor], progress: bool = False) -> torch.Tensor:
+                         prompt_tokens: tp.Optional[torch.Tensor], progress: bool = False, progress_callback: gr.Progress = None) -> torch.Tensor:
         """Generate discrete audio tokens given audio prompt and/or conditions.
 
         Args:
-            attributes (list of ConditioningAttributes): Conditions used for generation (here text).
+            attributes (list of ConditioningAttributes): Conditions used for generation (text/melody).
             prompt_tokens (torch.Tensor, optional): Audio prompt used for continuation.
             progress (bool, optional): Flag to display progress of the generation process. Defaults to False.
         Returns:
@@ -207,20 +208,24 @@ class BaseGenModel(ABC):
 
         def _progress_callback(generated_tokens: int, tokens_to_generate: int):
             generated_tokens += current_gen_offset
+            generated_tokens /= ((tokens_to_generate) / self.duration)
+            tokens_to_generate /= ((tokens_to_generate) / self.duration)
             if self._progress_callback is not None:
                 # Note that total_gen_len might be quite wrong depending on the
                 # codebook pattern used, but with delay it is almost accurate.
-                self._progress_callback(generated_tokens, tokens_to_generate)
-            else:
-                print(f'{generated_tokens: 6d} / {tokens_to_generate: 6d}', end='\r')
+                self._progress_callback((generated_tokens / tokens_to_generate), f"Generated {generated_tokens: 6.2f}/{tokens_to_generate: 6.2f} seconds")
+            if progress_callback is not None:
+                # Update Gradio progress bar
+                progress_callback((generated_tokens / tokens_to_generate), f"Generated {generated_tokens: 6.2f}/{tokens_to_generate: 6.2f} seconds")
+            if progress:
+                print(f'{generated_tokens: 6.2f} / {tokens_to_generate: 6.2f}', end='\r')
 
         if prompt_tokens is not None:
-            assert max_prompt_len >= prompt_tokens.shape[-1], \
-                "Prompt is longer than audio to generate"
+            if prompt_tokens.shape[-1] > max_prompt_len:
+                prompt_tokens = prompt_tokens[..., :max_prompt_len]
 
-        callback = None
-        if progress:
-            callback = _progress_callback
+        # callback = None
+        callback = _progress_callback
 
         if self.duration <= self.max_duration:
             # generate by sampling from LM, simple case.
@@ -240,6 +245,7 @@ class BaseGenModel(ABC):
                 prompt_length = prompt_tokens.shape[-1]
 
             stride_tokens = int(self.frame_rate * self.extend_stride)
+
             while current_gen_offset + prompt_length < total_gen_len:
                 time_offset = current_gen_offset / self.frame_rate
                 chunk_duration = min(self.duration - time_offset, self.max_duration)
