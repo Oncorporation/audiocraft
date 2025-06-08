@@ -16,6 +16,7 @@ librosa
 soundfile
 gradio==5.23.3
 gradio[oauth]
+gradio[mcp]
 pillow
 torchdiffeq
 torchmetrics
