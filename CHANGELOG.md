@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## ['1.3.Surn-MCP'] - 2025-06-09]
+
+Add implementation for the MCP protocol (https://arxiv.org/abs/2406.10970).
+
+## ['1.3.Surn'] - 2025-04-25]
+
+Add Style Music Model
+
 ## [1.2.Surn] - 2025-04-02
 
 Implemented Unlimited Music Generation (UMG) with the [hf checkpoints](https://huggingface.co/facebook/unlimited-music-generation).

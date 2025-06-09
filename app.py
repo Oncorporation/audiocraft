@@ -85,7 +85,7 @@ def toggle_audio_src(choice):
     Toggle the audio input source between microphone and file upload.
 
     Args:
-        choice (str): The selected audio source, either 'mic' or 'file'.
+        choice (str): The selected audio source, either 'mic' or 'upload'.
 
     Returns:
         gr.Update: Gradio update object to change the audio input component.
@@ -247,14 +247,14 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
     Args:
         model (str): Model name to use for generation.
         text (str): Prompt describing the music.
-        melody_filepath (str): Path to melody conditioning file.
+        melody_filepath (str): Path to melody conditioning file. default to None.
         duration (int): Total duration in seconds.
-        dimension (int): Audio stacking/concatenation dimension.
+        dimension (int): Audio stacking/concatenation dimension. 
         topk (int): Top-k sampling value.
         topp (float): Top-p sampling value.
         temperature (float): Sampling temperature.
         cfg_coef (float): Classifier-free guidance coefficient.
-        background (str): Path to background image.
+        background (str): Path to background image. default to "./assets/background.png".
         title (str): Song title.
         settings_font (str): Path to font file.
         settings_font_color (str): Font color for settings text.
@@ -280,6 +280,12 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
     melody_name = "Not Used"
     melody_extension = "Not Used"
     melody = None
+    if melody_filepath in ["None", ""]:
+        melody_filepath = None
+
+    if background in ["None", ""]:
+        background = "./assets/background.png"
+
     if melody_filepath:
         melody_name, melody_extension = get_filename_from_filepath(melody_filepath)
         melody = get_melody(melody_filepath)
