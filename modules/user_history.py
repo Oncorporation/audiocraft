@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.3.4"
+__version__ = "0.3.5"
 
 import json
 import os
@@ -46,9 +46,16 @@ from tqdm import tqdm
 user_profile = gr.State(None)
 
 def get_profile() -> gr.OAuthProfile | None:
-    global user_profile
-    """Return the user profile if logged in, None otherwise."""
+    """
+    Retrieve the currently logged-in user's profile.
 
+    This function returns the user profile stored in the global Gradio state.
+    If no user is logged in, it returns None.
+
+    Returns:
+        gr.OAuthProfile | None: The currently logged-in user's profile, or None if no user is logged in.
+    """
+    global user_profile
     return user_profile
 
 def setup(folder_path: str | Path | None = None, display_type: str = "image_path") -> None:
@@ -377,7 +384,15 @@ class _UserHistory(object):
     
 
 def _fetch_user_history(profile: gr.OAuthProfile | None) -> List[Tuple[str, str]]:
-    """Return saved history for that user, if it exists."""
+    """
+    Return saved history for the given user.
+
+    Args:
+        profile (gr.OAuthProfile | None): The user profile.
+
+    Returns:
+        List[Tuple[str, str]]: A list of tuples, where each tuple contains the path to an image and its label.
+    """
     # Cannot load history for logged out users
     global user_profile
     if profile is None:
@@ -407,7 +422,15 @@ def _fetch_user_history(profile: gr.OAuthProfile | None) -> List[Tuple[str, str]
 
 
 def _export_user_history(profile: gr.OAuthProfile | None) -> Dict | None:
-    """Zip all history for that user, if it exists and return it as a downloadable file."""
+    """
+    Zip all history for the given user, if it exists, and return it as a downloadable file.
+
+    Args:
+        profile (gr.OAuthProfile | None): The user profile.
+
+    Returns:
+        Dict | None: A Gradio update dictionary with the path to the zip file if successful, or None if the user is not logged in or user history is not initialized.
+    """
     # Cannot load history for logged out users
     if profile is None:
         return None
@@ -428,7 +451,15 @@ def _export_user_history(profile: gr.OAuthProfile | None) -> Dict | None:
 
 
 def _delete_user_history(profile: gr.OAuthProfile | None) -> None:
-    """Delete all history for that user."""
+    """
+    Delete all history for the given user.
+
+    Args:
+        profile (gr.OAuthProfile | None): The user profile.
+
+    Returns:
+        None
+    """
     # Cannot load history for logged out users
     if profile is None:
         return
