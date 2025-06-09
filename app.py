@@ -80,22 +80,48 @@ class FileCleaner:
 #file_cleaner = FileCleaner()
 
 def toggle_audio_src(choice):
+    """
+    Toggle the audio input source between microphone and file upload.
+
+    Args:
+        choice (str): The selected audio source, either 'mic' or 'file'.
+
+    Returns:
+        gr.Update: Gradio update object to change the audio input component.
+    """
     if choice == "mic":
         return gr.update(source="microphone", value=None, label="Microphone")
     else:
         return gr.update(source="upload", value=None, label="File")
 
 def get_waveform(*args, **kwargs):
-    # Further remove some warnings.
+    """
+    Generate a waveform video for the given audio input.
+
+    Args:
+        melody_filepath (str): Path to the melody audio file.
+
+    Returns:
+        tuple: (sample_rate, audio_data) loaded from the file.
+    """
     be = time.time()
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         out = gr.make_waveform(*args, **kwargs)
         print("Make a video took", time.time() - be)
         return out
-        
 
 def load_model(version, progress=gr.Progress(track_tqdm=True)):
+    """
+    Load a MusicGen model by version name, optionally showing progress.
+
+    Args:
+        version (str): The model version to load.
+        progress (gr.Progress, optional): Gradio progress tracker.
+
+    Returns:
+        MusicGen: The loaded MusicGen model instance.
+    """
     global MODEL, MODELS, UNLOAD_MODEL
     print("Loading model", version)
 
@@ -131,6 +157,12 @@ def get_melody(melody_filepath):
         return melody
 
 def git_tag():
+    """
+    Get the current git tag or fallback to the first line of CHANGELOG.md if unavailable.
+
+    Returns:
+        str: The current git tag or '<none>' if not available.
+    """
     try:
         return subprocess.check_output([git, "describe", "--tags"], shell=False, encoding='utf8').strip()
     except Exception:
@@ -143,12 +175,36 @@ def git_tag():
             return "<none>"
 
 def load_background_filepath(video_orientation):
+    """
+    Get the background image path based on video orientation.
+
+    Args:
+        video_orientation (str): Either 'Landscape' or 'Portait'.
+
+    Returns:
+        str: Path to the background image file.
+    """
     if video_orientation == "Landscape":
         return "./assets/background.png"
     else:
         return "./assets/background_portrait.png"
 
-def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperature, cfg_coef, segment_length = 30):
+def load_melody_filepath(melody_filepath, title, assigned_model, topp, temperature, cfg_coef, segment_length = 30):
+    """
+    Update melody-related UI fields based on the selected melody file and settings.
+
+    Args:
+        melody_filepath (str): Path to the melody file.
+        title (str): The song title.
+        assigned_model (str): The selected model name.
+        topp (float): Top-p sampling value.
+        temperature (float): Sampling temperature.
+        cfg_coef (float): Classifier-free guidance coefficient.
+        segment_length (int, optional): Segment length in seconds.
+
+    Returns:
+        tuple: Updated values for title, prompt_index, model, topp, temperature, cfg_coef, overlap.
+    """
     # get melody filename
     #$Union[str, os.PathLike]
     symbols = ['_', '.', '-']
@@ -184,6 +240,40 @@ def load_melody_filepath(melody_filepath, title, assigned_model,topp, temperatur
     return  gr.update(value=melody_name), gr.update(maximum=MAX_PROMPT_INDEX, value=-1), gr.update(value=assigned_model, interactive=True), gr.update(value=topp), gr.update(value=temperature), gr.update(value=cfg_coef), gr.update(maximum=MAX_OVERLAP)
 
 def predict(model, text, melody_filepath, duration, dimension, topk, topp, temperature, cfg_coef, background, title, settings_font, settings_font_color, seed, overlap=1, prompt_index = 0, include_title = True, include_settings = True, harmony_only = False, profile = gr.OAuthProfile, segment_length = 30, settings_font_size=28, settings_animate_waveform=False, video_orientation="Landscape", excerpt_duration=3.5, progress=gr.Progress(track_tqdm=True)):
+    """
+    Generate music and video based on the provided parameters and model.
+
+    Args:
+        model (str): Model name to use for generation.
+        text (str): Prompt describing the music.
+        melody_filepath (str): Path to melody conditioning file.
+        duration (int): Total duration in seconds.
+        dimension (int): Audio stacking/concatenation dimension.
+        topk (int): Top-k sampling value.
+        topp (float): Top-p sampling value.
+        temperature (float): Sampling temperature.
+        cfg_coef (float): Classifier-free guidance coefficient.
+        background (str): Path to background image.
+        title (str): Song title.
+        settings_font (str): Path to font file.
+        settings_font_color (str): Font color for settings text.
+        seed (int): Random seed.
+        overlap (int, optional): Segment overlap in seconds.
+        prompt_index (int, optional): Melody segment index.
+        include_title (bool, optional): Whether to add title to video.
+        include_settings (bool, optional): Whether to add settings to video.
+        harmony_only (bool, optional): Whether to use harmony only.
+        profile (gr.OAuthProfile): User profile.
+        segment_length (int, optional): Segment length in seconds.
+        settings_font_size (int, optional): Font size for settings text.
+        settings_animate_waveform (bool, optional): Animate waveform in video.
+        video_orientation (str, optional): Video orientation.
+        excerpt_duration (float, optional): Excerpt duration for style conditioning.
+        progress (gr.Progress, optional): Gradio progress tracker.
+
+    Returns:
+        tuple: (waveform_video_path, wave_file_path, seed_used)
+    """
     global MODEL, INTERRUPTED, INTERRUPTING, MOVE_TO_CPU
     output_segments = None
     melody_name = "Not Used"
