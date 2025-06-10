@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.3.5"
+__version__ = "0.3.6"
 
 import json
 import os
