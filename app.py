@@ -180,7 +180,7 @@ def load_background_filepath(video_orientation):
     Get the background image path based on video orientation.
 
     Args:
-        video_orientation (str): Either 'Landscape' or 'Portait'.
+        video_orientation (str): Either 'Landscape' or 'Portrait'.
 
     Returns:
         str: Path to the background image file.
@@ -467,7 +467,7 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
             output = output.detach().cpu().float()[0]
     
     video_width, video_height = 768, 512
-    if video_orientation == "Portait":
+    if video_orientation == "Portrait":
         video_width, video_height = 512, 768
 
     title_file_name = convert_title_to_filename(title)
@@ -629,7 +629,7 @@ def ui(**kwargs):
                                 with gr.Column():
                                     include_title = gr.Checkbox(label="Add Title", value=True, interactive=True,key="add_title")
                                     include_settings = gr.Checkbox(label="Add Settings to background", value=True, interactive=True, key="add_settings")
-                                    video_orientation = gr.Radio(label="Video Orientation", choices=["Landscape", "Portait"], value="Landscape", interactive=True, key="video_orientation")
+                                    video_orientation = gr.Radio(label="Video Orientation", choices=["Landscape", "Portrait"], value="Landscape", interactive=True, key="video_orientation")
                             with gr.Row():
                                 title = gr.Textbox(label="Title", value="UnlimitedMusicGen", interactive=True, key="song_title")
                                 settings_font = gr.Text(label="Settings Font", value="./assets/arial.ttf", interactive=True)
