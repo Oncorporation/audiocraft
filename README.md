@@ -4,12 +4,13 @@ emoji: 🎼
 colorFrom: gray
 colorTo: red
 sdk: gradio
-sdk_version: 5.33.2
+sdk_version: 5.34.0
 python_version: 3.12.8
 app_file: app.py
 pinned: true
 license: creativeml-openrail-m
 tags:
+- mcp-server-track
 - musicgen
 - unlimited
 - user history
