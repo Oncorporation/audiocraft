@@ -4,7 +4,7 @@ emoji: 🎼
 colorFrom: gray
 colorTo: red
 sdk: gradio
-sdk_version: 5.34.0
+sdk_version: 5.34.2
 python_version: 3.12.8
 app_file: app.py
 pinned: true
@@ -40,6 +40,16 @@ This allows us to follow the same arraingement of the original melody.
 
 **Thank you Huggingface for the community grant to run this project**!!
 
+## Key Features
+
+- **Unlimited Audio Generation**: Generate music of any length by seamlessly stitching together segments
+- **User History**: Save and manage your generated music and access it later
+- **File Storage**: Generated files are automatically stored in a Hugging Face repository with shareable URLs
+- **Rich Metadata**: Each generated file includes detailed metadata about the generation parameters
+- **API Access**: Generate music programmatically using the REST API
+- **Background Customization**: Use custom images and settings for your music videos
+- **Melody Conditioning**: Use existing music to guide the generation process
+
 # Audiocraft
 ![docs badge](https://github.com/facebookresearch/audiocraft/workflows/audiocraft_docs/badge.svg)
 ![linter badge](https://github.com/facebookresearch/audiocraft/workflows/audiocraft_linter/badge.svg)
@@ -67,8 +77,6 @@ We use 20K hours of licensed music to train MusicGen. Specifically, we rely on a
 
 ## Installation
 Audiocraft requires Python 3.9, PyTorch 2.1.0, and a GPU with at least 16 GB of memory (for the medium-sized model). To install Audiocraft, you can run the following:
-
-```shell
 # Best to make sure you have torch installed first, in particular before installing xformers.
 # Don't run this if you already have PyTorch installed.
 pip install 'torch>=2.1'
@@ -76,8 +84,6 @@ pip install 'torch>=2.1'
 pip install -U audiocraft  # stable release
 pip install -U git+https://git@github.com/facebookresearch/audiocraft#egg=audiocraft  # bleeding edge
 pip install -e .  # or if you cloned the repo locally
-```
-
 ## Usage
 We offer a number of way to interact with MusicGen:
 1. A demo is also available on the [`facebook/MusicGen`  HuggingFace Space](https://huggingface.co/spaces/Surn/UnlimitedMusicGen) (huge thanks to all the HF team for their support).
@@ -88,9 +94,46 @@ We offer a number of way to interact with MusicGen:
   updated with contributions from @camenduru and the community.
 6. Finally, MusicGen is available in 🤗 Transformers from v4.31.0 onwards, see section [🤗 Transformers Usage](#-transformers-usage) below.
 
-### More info about Top-k, Top-p, Temperature and Classifier Free Guidance from ChatGPT
-6. Finally, MusicGen is available in 🤗 Transformers from v4.31.0 onwards, see section [🤗 Transformers Usage](#-transformers-usage) below.
+### Advanced Usage
 
+#### Programmatic Generation via API
+
+The `predict_simple` API endpoint allows generating music without using the UI:
+import requests
+
+# Example API call
+response = requests.post(
+    "https://huggingface.co/spaces/Surn/UnlimitedMusicGen/api/predict_simple",
+    json={
+        "model": "stereo-medium",  # Choose your model
+        "text": "Epic orchestral soundtrack with dramatic strings and percussion",
+        "duration": 60,  # Duration in seconds
+        "topk": 250,
+        "topp": 0,  # 0 means use topk instead
+        "temperature": 0.8,
+        "cfg_coef": 4.0,
+        "seed": 42,  # Use -1 for random seed
+        "overlap": 2,  # Seconds of overlap between segments
+        "video_orientation": "Landscape"  # or "Portrait"
+    }
+)
+
+# URLs to the generated content
+video_url, audio_url, seed = response.json()
+#### Custom Background Images
+
+You can use your own background images for the music video:
+
+1. Upload an image through the UI
+2. Or specify an image URL in the API call:response = requests.post(
+    "https://huggingface.co/spaces/Surn/UnlimitedMusicGen/api/predict_simple",
+    json={
+        # ... other parameters
+        "background": "https://example.com/your-image.jpg",
+        "video_orientation": "Landscape"
+    }
+)
+### More info about Top-k, Top-p, Temperature and Classifier Free Guidance from ChatGPT
 
 Top-k: Top-k is a parameter used in text generation models, including music generation models. It determines the number of most likely next tokens to consider at each step of the generation process. The model ranks all possible tokens based on their predicted probabilities, and then selects the top-k tokens from the ranked list. The model then samples from this reduced set of tokens to determine the next token in the generated sequence. A smaller value of k results in a more focused and deterministic output, while a larger value of k allows for more diversity in the generated music.
 
@@ -102,7 +145,53 @@ Classifier-Free Guidance: Classifier-Free Guidance refers to a technique used in
 
 These parameters, such as top-k, top-p, temperature, and classifier-free guidance, provide different ways to influence the output of a music generation model and strike a balance between creativity, diversity, coherence, and control. The specific values for these parameters can be tuned based on the desired outcome and user preferences.
 
-## API
+## API and Storage Integration
+
+UnlimitedMusicGen now offers enhanced API capabilities and file storage integration with Hugging Face repositories:
+
+### REST API Access
+
+The application exposes a simple REST API endpoint through Gradio that allows you to generate music programmatically:
+import requests
+
+# Basic API call example
+response = requests.post(
+    "https://your-app-url/api/predict_simple",
+    json={
+        "model": "medium",
+        "text": "4/4 120bpm electronic music with driving bass",
+        "duration": 30,
+        "temperature": 0.7,
+        "cfg_coef": 3.75,
+        "title": "My API Generated Track"
+    }
+)
+
+# The response contains URLs to the generated audio/video
+video_url, audio_url, seed = response.json()
+print(f"Generated music video: {video_url}")
+print(f"Generated audio file: {audio_url}")
+print(f"Seed used: {seed}")
+### File Storage
+
+Generated files are automatically uploaded to a Hugging Face dataset repository, providing:
+
+- Persistent storage of your generated audio and video files
+- Shareable URLs for easy distribution
+- Organization by user, timestamp, and metadata
+- Automatic handling of file paths and naming
+
+The storage system supports various file types including audio (.wav, .mp3), video (.mp4), and images (.png, .jpg).
+
+### Background Image Support
+
+You can now provide custom background images for your music videos:
+- Upload from your device
+- Use URL links to images (automatically downloaded and processed)
+- Choose between landscape and portrait orientations
+- Add title and generation settings overlay with customizable fonts and colors
+
+## Python API
 
 We provide a simple API and 10 pre-trained models. The pre trained models are:
 - `small`: 300M model, text to music only - [🤗 Hub](https://huggingface.co/facebook/musicgen-small)
@@ -121,14 +210,8 @@ In order to use MusicGen locally **you must have a GPU**. We recommend 16GB of m
 GPUs will be able to generate short sequences, or longer sequences with the `small` model.
 
 **Note**: Please make sure to have [ffmpeg](https://ffmpeg.org/download.html) installed when using newer version of `torchaudio`.
-You can install it with:
-```
-apt-get install ffmpeg
-```
-
+You can install it with:apt-get install ffmpeg
 See after a quick example for using the API.
-
-```python
 import torchaudio
 from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_write
@@ -145,22 +228,14 @@ wav = model.generate_with_chroma(descriptions, melody[None].expand(3, -1, -1), s
 
 for idx, one_wav in enumerate(wav):
     # Will save under {idx}.wav, with loudness normalization at -14 db LUFS.
-    audio_write(f'{idx}', one_wav.cpu(), model.sample_rate, strategy="loudness", loudness_compressor=True)
-```
-## 🤗 Transformers Usage
+    audio_write(f'{idx}', one_wav.cpu(), model.sample_rate, strategy="loudness", loudness_compressor=True)## 🤗 Transformers Usage
 
 MusicGen is available in the 🤗 Transformers library from version 4.31.0 onwards, requiring minimal dependencies 
 and additional packages. Steps to get started:
 
 1. First install the 🤗 [Transformers library](https://github.com/huggingface/transformers) from main:
-
-```
 pip install git+https://github.com/huggingface/transformers.git
-```
-
 2. Run the following Python code to generate text-conditional audio samples:
-
-```py
 from transformers import AutoProcessor, MusicgenForConditionalGeneration
 
 
@@ -174,26 +249,16 @@ inputs = processor(
 )
 
 audio_values = model.generate(**inputs, max_new_tokens=256)
-```
-
 3. Listen to the audio samples either in an ipynb notebook:
-
-```py
 from IPython.display import Audio
 
 sampling_rate = model.config.audio_encoder.sampling_rate
 Audio(audio_values[0].numpy(), rate=sampling_rate)
-```
-
 Or save them as a `.wav` file using a third-party library, e.g. `scipy`:
-
-```py
 import scipy
 
 sampling_rate = model.config.audio_encoder.sampling_rate
 scipy.io.wavfile.write("musicgen_out.wav", rate=sampling_rate, data=audio_values[0, 0].numpy())
-```
-
 For more details on using the MusicGen model for inference using the 🤗 Transformers library, refer to the 
 [MusicGen docs](https://huggingface.co/docs/transformers/main/en/model_doc/musicgen) or the hands-on 
 [Google Colab](https://colab.research.google.com/github/sanchit-gandhi/notebooks/blob/main/MusicGen.ipynb).
@@ -237,16 +302,12 @@ Yes. We will soon release the training code for MusicGen and EnCodec.
 
 Check [@camenduru tutorial on Youtube](https://www.youtube.com/watch?v=EGfxuTy9Eeo).
 
-## Citation
-```
-@article{copet2023simple,
+## Citation@article{copet2023simple,
       title={Simple and Controllable Music Generation},
       author={Jade Copet and Felix Kreuk and Itai Gat and Tal Remez and David Kant and Gabriel Synnaeve and Yossi Adi and Alexandre Défossez},
       year={2023},
       journal={arXiv preprint arXiv:2306.05284},
 }
-```
-
 ## License
 * The code in this repository is released under the MIT license as found in the [LICENSE file](LICENSE).
 * The weights in this repository are released under the CC-BY-NC 4.0 license as found in the [LICENSE_weights file](LICENSE_weights).

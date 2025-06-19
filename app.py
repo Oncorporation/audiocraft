@@ -33,11 +33,13 @@ import librosa
 import modules.user_history
 from modules.version_info import versions_html, commit_hash, get_xformers_version
 from modules.gradio import *
-from modules.file_utils import get_file_parts, get_filename_from_filepath, convert_title_to_filename, get_unique_file_path, delete_file
+from modules.file_utils import get_file_parts, get_filename_from_filepath, convert_title_to_filename, get_unique_file_path, delete_file, download_and_save_image
+from modules.constants import IS_SHARED_SPACE, HF_REPO_ID
+from modules.storage import upload_files_to_repo
 
 MODEL = None
 MODELS = None
-IS_SHARED_SPACE = "Surn/UnlimitedMusicGen" in os.environ.get('SPACE_ID', '')
+#IS_SHARED_SPACE = "Surn/UnlimitedMusicGen" in os.environ.get('SPACE_ID', '')
 INTERRUPTED = False
 UNLOAD_MODEL = False
 MOVE_TO_CPU = False
@@ -577,6 +579,105 @@ def predict(model, text, melody_filepath, duration, dimension, topk, topp, tempe
     #torch.cuda.empty_cache()
     torch.cuda.ipc_collect()
     return waveform_video_path, file.name, seed
+
+def fix_path(path: str) -> str:
+    """
+    Strips all characters preceding '_user_history' in the given path and replaces them with "./".
+    
+    If the substring '_user_history' is not found, returns the original path.
+    
+    Args:
+        path (str): The input file path.
+        
+    Returns:
+        str: The modified file path.
+    """
+    index = path.find("_user_history")
+    if index != -1:
+        return "./" + path[index:].replace("\\", "/")
+    return path
+# Add this wrapper function above the gr.api definitions
+def predict_simple(model: str, text: str, duration: int = 10, dimension: int = 2, topk: int = 200, topp: float = 0.01, temperature: float = 1.0, cfg_coef: float = 4.0, background: str = "./assets/background.png", title: str = "UnlimitedMusicGen", settings_font: str = "./assets/arial.ttf", settings_font_color: str = "#c87f05", seed: int = -1, overlap: int = 1, prompt_index: int = -1, include_title: bool = True, include_settings: bool = True, profile: str = "Satoshi Nakamoto", segment_length: int = 30, settings_font_size: int = 28, settings_animate_waveform: bool = False, video_orientation: str = "Landscape",  return_history_json: bool = False) -> tp.List[tp.Tuple[str, str, str]]:
+    """
+        Generate music and video based on the provided parameters and model.
+
+        Args:
+            model (str): Model name to use for generation.
+            text (str): Prompt describing the music.
+            duration (int): Total duration in seconds.
+            dimension (int): Audio stacking/concatenation dimension. 
+            topk (int): Top-k sampling value.
+            topp (float): Top-p sampling value.
+            temperature (float): Sampling temperature.
+            cfg_coef (float): Classifier-free guidance coefficient.
+            background (str, optional): Path to background image. Default to "./assets/background.png".
+            title (str, optional): Song title. Default to "UnlimitedMusicGen".
+            settings_font (str, optional): Path to font file. Default to "./assets/arial.ttf".
+            settings_font_color (str, optional): Font color for settings text. Default to "
+            seed (int, optional): Random seed. Default to -1.
+            overlap (int, optional): Segment overlap in seconds. Default to 1.
+            prompt_index (int, optional): Melody segment index. Default to -1.
+            include_title (bool, optional): Whether to add title to video. Default to True.
+            include_settings (bool, optional): Whether to add settings to video. Default to True.
+            profile (str, optional): User profile.
+            segment_length (int, optional): Segment length in seconds.
+            settings_font_size (int, optional): Font size for settings text.
+            settings_animate_waveform (bool, optional): Animate waveform in video.
+            video_orientation (str, optional): Video orientation
+            return_history_json (bool, optional): Return history JSON instead of typical output. Default to False.
+
+        Returns:
+             tp.List[tp.Tuple[str, str, str]]: [waveform_video_path, wave_file_path, seed_used]
+    """
+    profile_username_to_send = "default_user" 
+
+    if not profile:
+        profile = modules.user_history.get_profile
+
+    if profile:
+        actual_profile_data = profile
+        # Unwrap if it's a gr.State object
+        if hasattr(profile, 'value') and profile.value is not None:
+            actual_profile_data = profile.value
+            
+        # Now actual_profile_data is either an OAuthProfile or a string username
+        if hasattr(actual_profile_data, 'username') and actual_profile_data.username: # OAuthProfile
+            profile_username_to_send = actual_profile_data.username
+        elif isinstance(actual_profile_data, str) and actual_profile_data: # string username
+            profile_username_to_send = actual_profile_data
+
+    UMG_result = predict(model, text, melody_filepath=None, duration=duration, dimension=dimension, topk=topk, topp=topp, temperature=temperature, cfg_coef=cfg_coef, background=background, title=title, settings_font=settings_font, settings_font_color=settings_font_color, seed=seed, overlap=overlap, prompt_index=prompt_index, include_title=include_title, include_settings=include_settings, harmony_only=False, profile=profile, segment_length=segment_length, settings_font_size=settings_font_size, settings_animate_waveform=settings_animate_waveform, video_orientation=video_orientation, excerpt_duration=3.5,  return_history_json=return_history_json)
+
+    # upload to storage and return urls
+    folder_name = f"user_uploads/{profile_username_to_send}"
+    if return_history_json:
+        # use modules.storage.upload_files_to_repo to get urls for image_path, video_path, audio_path
+        upload_result = upload_files_to_repo(
+            files=[UMG_result["video_path"],UMG_result["audio_path"], UMG_result["image_path"]],
+            repo_id=HF_REPO_ID, # constants.py value of dataset repo
+            folder_name=f"{folder_name}/{UMG_result['metadata']['title']}/{UMG_result['metadata']['Seed']}/{time.strftime('%Y%m%d%H%M%S')}",
+            create_permalink=False,
+            repo_type="dataset"
+        )
+        if upload_result:
+            UMG_result["video_path"] = upload_result[0][1]  # Assuming [(response, link) for link in individual_links]
+            UMG_result["audio_path"] = upload_result[1][1]
+            UMG_result["image_path"] = upload_result[2][1]
+        content = UMG_result["video_path"], UMG_result["audio_path"], UMG_result["metadata"]["Seed"]
+        UMG_result = content
+    else:
+        # use modules.storage.upload_files_to_repo to get urls for video_path, audio_path
+        upload_result = upload_files_to_repo(
+            files=[UMG_result[0],UMG_result[1]],
+            repo_id=HF_REPO_ID, # constants.py value of dataset repo
+            folder_name=f"{folder_name}/{UMG_result[2]}/{time.strftime('%Y%m%d%H%M%S')}",
+            create_permalink=False,
+            repo_type="dataset"
+        )
+        if upload_result:
+            UMG_result = upload_result[0][1], upload_result[1][1], UMG_result[2]
+    
+    return UMG_result
 
 gr.set_static_paths(paths=["fonts/","assets/","images/"])
 def ui(**kwargs):
