@@ -649,13 +649,13 @@ def predict_simple(model: str, text: str, duration: int = 10, dimension: int = 2
     UMG_result = predict(model, text, melody_filepath=None, duration=duration, dimension=dimension, topk=topk, topp=topp, temperature=temperature, cfg_coef=cfg_coef, background=background, title=title, settings_font=settings_font, settings_font_color=settings_font_color, seed=seed, overlap=overlap, prompt_index=prompt_index, include_title=include_title, include_settings=include_settings, harmony_only=False, profile=profile, segment_length=segment_length, settings_font_size=settings_font_size, settings_animate_waveform=settings_animate_waveform, video_orientation=video_orientation, excerpt_duration=3.5,  return_history_json=return_history_json)
 
     # upload to storage and return urls
-    folder_name = f"user_uploads/{profile_username_to_send}"
+    folder_name = f"user_uploads/{convert_title_to_filename(profile_username_to_send)}/{convert_title_to_filename(title)}"
     if return_history_json:
         # use modules.storage.upload_files_to_repo to get urls for image_path, video_path, audio_path
         upload_result = upload_files_to_repo(
             files=[UMG_result["video_path"],UMG_result["audio_path"], UMG_result["image_path"]],
             repo_id=HF_REPO_ID, # constants.py value of dataset repo
-            folder_name=f"{folder_name}/{UMG_result['metadata']['title']}/{UMG_result['metadata']['Seed']}/{time.strftime('%Y%m%d%H%M%S')}",
+            folder_name=f"{folder_name}/{UMG_result['metadata']['Seed']}/{time.strftime('%Y%m%d%H%M%S')}",
             create_permalink=False,
             repo_type="dataset"
         )
