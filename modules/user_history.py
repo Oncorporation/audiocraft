@@ -18,7 +18,7 @@ Useful links:
 Update by Surn (Charles Fettinger)
 """
 
-__version__ = "0.3.6"
+__version__ = "0.4.0"
 
 import json
 import os
@@ -160,7 +160,7 @@ def save_image(
     profile: gr.OAuthProfile | None,
     image: Image.Image | np.ndarray | str | Path,
     label: str | None = None,
-    metadata: Dict | None = None,
+    metadata: dict | None = None,
 ):
     # Ignore images from logged out users
     if profile is None:
@@ -172,7 +172,8 @@ def save_image(
     if not user_history.initialized:
         warnings.warn(
             "User history is not set in Gradio demo. Saving image is ignored. You must use `user_history.render(...)`"
-            " first."
+            " first.",
+            stacklevel=2,
         )
         return
 
@@ -184,11 +185,12 @@ def save_image(
         metadata = {}
     if "datetime" not in metadata:
         metadata["datetime"] = str(datetime.now())
+
     data = {"image_path": str(image_path), "label": label, "metadata": metadata}
-    with user_history._user_lock(username):
-        with user_history._user_jsonl_path(username).open("a") as f:
-            f.write(json.dumps(data) + "\n")
-            
+    with user_history._user_lock(username), user_history._user_jsonl_path(username).open("a") as f:
+        f.write(json.dumps(data) + "\n")
+
+
 def save_file(
     profile: gr.OAuthProfile | None,
     image: Image.Image | np.ndarray | str | Path | None = None,
@@ -196,9 +198,12 @@ def save_file(
     audio: str | Path | None = None,
     document: str | Path | None = None,
     label: str | None = None,
-    metadata: Dict | None = None,
-    progress= gr.Progress(track_tqdm=True)
+    metadata: dict | None = None,
+    progress: gr.Progress | None = None,
 ):
+    if progress is None:
+        progress = gr.Progress(track_tqdm=True)
+    progress(0, desc="Saving files to history...")
     # Ignore files from logged out users
     if profile is None:
         return
@@ -209,7 +214,8 @@ def save_file(
     if not user_history.initialized:
         warnings.warn(
             "User history is not set in Gradio demo. Saving files is ignored. You must use `user_history.render(...)`"
-            " first."
+            " first.",
+            stacklevel=2,
         )
         return
 
@@ -239,14 +245,18 @@ def save_file(
         audio_path = None
         # Copy audio to storage
         if audio is not None:
-            audio_path1 = _copy_file(audio, dst_folder=user_history._user_file_path(username, "audios"), uniqueId=uniqueId)
+            audio_path1 = _copy_file(
+                audio, dst_folder=user_history._user_file_path(username, "audios"), uniqueId=uniqueId
+            )
             audio_path = _add_metadata(audio_path1, metadata)
             pb.update(1)
 
         video_path = None
         # Copy video to storage - need audio_path if available
         if video is not None:
-            video_path1 = _copy_file(video, dst_folder=user_history._user_file_path(username, "videos"), uniqueId=uniqueId)
+            video_path1 = _copy_file(
+                video, dst_folder=user_history._user_file_path(username, "videos"), uniqueId=uniqueId
+            )
             video_path = _add_metadata(video_path1, metadata, str(audio_path))
             pb.update(1)
 
@@ -260,7 +270,9 @@ def save_file(
         document_path = None
         # Copy document to storage
         if document is not None:
-            document_path1 = _copy_file(document, dst_folder=user_history._user_file_path(username, "documents"), uniqueId=uniqueId)
+            document_path1 = _copy_file(
+                document, dst_folder=user_history._user_file_path(username, "documents"), uniqueId=uniqueId
+            )
             document_path = _add_metadata(document_path1, metadata)
             pb.update(1)
 
@@ -271,11 +283,13 @@ def save_file(
             "audio_path": str(audio_path),
             "document_path": str(document_path),
             "label": _UserHistory._sanitize_for_json(label),
-            "metadata": _UserHistory._sanitize_for_json(metadata)
+            "metadata": _UserHistory._sanitize_for_json(metadata),
         }
-        with user_history._user_lock(username):
-            with user_history._user_jsonl_path(username).open("a") as f:
-                f.write(json.dumps(data) + "\n")
+        with (
+            user_history._user_lock(username),
+            user_history._user_jsonl_path(username).open("a") as f,
+        ):
+            f.write(json.dumps(data) + "\n")
         pb.update(1)
 
         # Cleanup
@@ -319,9 +333,12 @@ def get_filepath():
     """Return the path to the user history folder."""
     user_history = _UserHistory()
     if not user_history.initialized:
-        warnings.warn("User history is not set in Gradio demo. You must use `user_history.render(...)` first.")
+        warnings.warn(
+            "User history is not set in Gradio demo. You must use `user_history.render(...)` first.", stacklevel=2
+        )
         return None
     return user_history.folder_path
+
 
     
 
@@ -330,7 +347,7 @@ def get_filepath():
 #############
 
 
-class _UserHistory(object):
+class _UserHistory:
     _instance = None
     initialized: bool = False
     folder_path: Path
@@ -340,7 +357,7 @@ class _UserHistory(object):
         # Using singleton pattern => we don't want to expose an object (more complex to use) but still want to keep
         # state between `render` and `save_image` calls.
         if cls._instance is None:
-            cls._instance = super(_UserHistory, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def _user_path(self, username: str) -> Path:
@@ -383,7 +400,7 @@ class _UserHistory(object):
             return str(obj)
     
 
-def _fetch_user_history(profile: gr.OAuthProfile | None) -> List[Tuple[str, str]]:
+def _fetch_user_history(profile: gr.OAuthProfile | None) -> list[tuple[str, str]]:
     """
     Return saved history for the given user.
 
@@ -404,7 +421,9 @@ def _fetch_user_history(profile: gr.OAuthProfile | None) -> List[Tuple[str, str]
 
     user_history = _UserHistory()
     if not user_history.initialized:
-        warnings.warn("User history is not set in Gradio demo. You must use `user_history.render(...)` first.")
+        warnings.warn(
+            "User history is not set in Gradio demo. You must use `user_history.render(...)` first.", stacklevel=2
+        )
         return []
 
     with user_history._user_lock(username):
@@ -421,7 +440,7 @@ def _fetch_user_history(profile: gr.OAuthProfile | None) -> List[Tuple[str, str]
         return list(reversed(images))
 
 
-def _export_user_history(profile: gr.OAuthProfile | None) -> Dict | None:
+def _export_user_history(profile: gr.OAuthProfile | None) -> dict | None:
     """
     Zip all history for the given user, if it exists, and return it as a downloadable file.
 
@@ -438,7 +457,9 @@ def _export_user_history(profile: gr.OAuthProfile | None) -> Dict | None:
 
     user_history = _UserHistory()
     if not user_history.initialized:
-        warnings.warn("User history is not set in Gradio demo. You must use `user_history.render(...)` first.")
+        warnings.warn(
+            "User history is not set in Gradio demo. You must use `user_history.render(...)` first.", stacklevel=2
+        )
         return None
 
     # Zip history
@@ -467,7 +488,9 @@ def _delete_user_history(profile: gr.OAuthProfile | None) -> None:
 
     user_history = _UserHistory()
     if not user_history.initialized:
-        warnings.warn("User history is not set in Gradio demo. You must use `user_history.render(...)` first.")
+        warnings.warn(
+            "User history is not set in Gradio demo. You must use `user_history.render(...)` first.", stacklevel=2
+        )
         return
 
     with user_history._user_lock(username):
@@ -506,6 +529,7 @@ def _copy_image(image: Image.Image | np.ndarray | str | Path, dst_folder: Path, 
             dst = Path(image)
         return dst  # Return the original file_location if an error occurs
 
+
 def _copy_file(file: Any | np.ndarray | str | Path, dst_folder: Path, uniqueId: str = "") -> Path:
     try:
         """Copy file to the appropriate folder."""
@@ -539,7 +563,7 @@ def _copy_file(file: Any | np.ndarray | str | Path, dst_folder: Path, uniqueId: 
         return dst  # Return the original file_location if an error occurs
 
 
-def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: str = None) -> Path:
+def _add_metadata(file_location: Path, metadata: dict[str, Any], support_path: str = None) -> Path:
     try:
         file_type = file_location.suffix
         valid_file_types = [".wav", ".mp3", ".mp4", ".png"]
@@ -553,7 +577,11 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: s
             # Open and process .wav file
             with wave.open(str(file_location), 'rb') as wav_file:
                 # Get the current metadata
-                current_metadata = {key: value for key, value in wav_file.getparams()._asdict().items() if isinstance(value, (int, float))}
+                current_metadata = {
+                    key: value
+                    for key, value in wav_file.getparams()._asdict().items()
+                    if isinstance(value, (int, float))
+                }
                 
                 # Update metadata
                 current_metadata.update(metadata)
@@ -588,7 +616,7 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: s
             metadata_args = [f"{key}={value}" for key, value in metadata.items()]
             ffmpeg_metadata = ":".join(metadata_args)
             ffmpeg_cmd = f'ffmpeg -y -i "{str(file_location)}" -i "{str(wav_file_location)}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -metadata "{ffmpeg_metadata}" "{new_file_location}"'
-            subprocess.run(ffmpeg_cmd, shell=True, check=True)
+            subprocess.run(ffmpeg_cmd, shell=True, check=True) # noqa: S602
 
             # Remove temporary WAV file
             if not wave_exists:
@@ -610,6 +638,7 @@ def _add_metadata(file_location: Path, metadata: Dict[str, Any], support_path: s
     except Exception as e:
         print(f"An error occurred: {e}")
         return file_location  # Return the original file_location if an error occurs
+
    
 def _resolve_folder_path(folder_path: str | Path | None) -> Path:
     if folder_path is not None:
@@ -643,7 +672,9 @@ def _display_if_admin() -> Callable:
     def _inner(profile: gr.OAuthProfile | None) -> str:
         if profile is None:
             return ""
-        if profile["preferred_username"] in _fetch_admins():
+
+        username = profile if isinstance(profile, str) else profile["preferred_username"]
+        if username in _fetch_admins():
             return _admin_content()
         return ""
 
@@ -691,6 +722,7 @@ def _get_nb_images() -> int:
         return len([path for path in user_history.folder_path.glob("*/images/*")])
     return 0
 
+
 def _get_nb_video() -> int:
     user_history = _UserHistory()
     if not user_history.initialized:
@@ -720,25 +752,25 @@ def _disk_space_warning_message() -> str:
     message = ""
     if user_history.folder_path is not None:
         total, used, _ = _get_disk_usage(user_history.folder_path)
-        message += f"History folder: **{used / 1e9 :.0f}/{total / 1e9 :.0f}GB** used ({100*used/total :.0f}%)."
+        message += f"History folder: **{used / 1e9:.0f}/{total / 1e9:.0f}GB** used ({100 * used / total:.0f}%)."
 
     total, used, _ = _get_disk_usage(_archives_path())
-    message += f"\n\nExports folder: **{used / 1e9 :.0f}/{total / 1e9 :.0f}GB** used ({100*used/total :.0f}%)."
+    message += f"\n\nExports folder: **{used / 1e9:.0f}/{total / 1e9:.0f}GB** used ({100 * used / total:.0f}%)."
 
     return f"{message.strip()}"
 
 
-def _get_disk_usage(path: Path) -> Tuple[int, int, int]:
-    for path in [path] + list(path.parents):  # first check target_dir, then each parents one by one
+def _get_disk_usage(path: Path) -> tuple[int, int, int]:
+    for p in [path] + list(path.parents):  # first check target_dir, then each parents one by one
         try:
-            return shutil.disk_usage(path)
+            return shutil.disk_usage(p)
         except OSError:  # if doesn't exist or can't read => fail silently and try parent one
             pass
     return 0, 0, 0
 
 
 @cache
-def _fetch_admins() -> List[str]:
+def _fetch_admins() -> list[str]:
     # Running locally => fake user is admin
     if os.getenv("SYSTEM") != "spaces":
         return ["FakeGradioUser"]
@@ -751,7 +783,7 @@ def _fetch_admins() -> List[str]:
     # Running in Space => try to fetch organization members
     # Otherwise, it's not an organization => namespace is the user
     namespace = space_id.split("/")[0]
-    response = requests.get(f"https://huggingface.co/api/organizations/{namespace}/members")
+    response = requests.get(f"https://huggingface.co/api/organizations/{namespace}/members", timeout=20)
     if response.status_code == 200:
         return sorted((member["user"] for member in response.json()), key=lambda x: x.lower())
     return [namespace]
